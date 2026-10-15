@@ -1,0 +1,3 @@
+interface:
+  display_name: "DownloadX"
+  short_description: "Resumable downloads via the local DownloadX engine"

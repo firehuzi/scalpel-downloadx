@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>刃研社-DownloadX</title>
+<style>
+  :root {
+    --bg: #0e1117;
+    --panel: #161b22;
+    --panel-2: #1c2330;
+    --border: #262d3a;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #3fb950;
+    --accent-2: #58a6ff;
+    --warn: #d29922;
+    --danger: #f85149;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  }
+  a { color: var(--accent-2); }
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: linear-gradient(180deg, #121722, #0e1117);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+  }
+  .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .brand { font-weight: 700; font-size: 18px; letter-spacing: .5px; }
+  .brand span { color: var(--accent); }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 9px; border-radius: 999px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    font-size: 12px; color: var(--muted);
+  }
+  .badge b { color: var(--text); font-weight: 600; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.on { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .dot.off { background: var(--danger); }
+  main { padding: 18px 20px 60px; max-width: 1280px; margin: 0 auto; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px; margin-bottom: 16px;
+  }
+  .panel h2 { margin: 0 0 10px; font-size: 14px; color: var(--muted); font-weight: 600; }
+  input, select, button, textarea {
+    font: inherit; color: var(--text); background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; outline: none;
+  }
+  input:focus, select:focus { border-color: var(--accent-2); }
+  input::placeholder { color: #5b6472; }
+  button {
+    cursor: pointer; transition: .15s border-color, .15s background;
+    background: #202834;
+  }
+  button:hover { border-color: var(--accent-2); }
+  button.primary { background: var(--accent); color: #04120a; border-color: var(--accent); font-weight: 600; }
+  button.ghost { background: transparent; }
+  button.danger:hover { border-color: var(--danger); color: var(--danger); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .grow { flex: 1 1 320px; min-width: 200px; }
+  .small { font-size: 12px; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .task { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; margin-bottom: 10px; background: var(--panel); }
+  .task-top { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .name { font-weight: 600; word-break: break-all; }
+  .url { font-size: 12px; color: var(--muted); word-break: break-all; }
+  .bar { height: 8px; background: #10151e; border-radius: 999px; overflow: hidden; margin: 9px 0 6px; }
+  .bar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #2f81f7, #3fb950); transition: width .3s ease; }
+  .meta { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .meta b { color: var(--text); font-weight: 600; }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .actions button { padding: 4px 10px; font-size: 12px; }
+  .status { padding: 2px 8px; border-radius: 999px; font-size: 12px; border: 1px solid var(--border); }
+  .st-downloading { color: var(--accent-2); border-color: #1f6feb; background: #12233b; }
+  .st-completed { color: var(--accent); border-color: #238636; background: #10251a; }
+  .st-paused { color: var(--warn); border-color: #9e6a03; background: #2a1f06; }
+  .st-failed { color: var(--danger); border-color: #b62324; background: #2d1214; }
+  .st-canceled { color: var(--muted); }
+  .st-queued, .st-verifying { color: #c9a3ff; border-color: #6e40c9; background: #1d1630; }
+  .err { color: var(--danger); font-size: 12px; margin-top: 6px; word-break: break-all; }
+  #toasts { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 50; }
+  .toast { background: #202834; border: 1px solid var(--border); border-left: 3px solid var(--accent-2);
+           padding: 9px 13px; border-radius: 8px; max-width: 380px; box-shadow: 0 6px 24px #0008; }
+  .toast.err { border-left-color: var(--danger); }
+  details summary { cursor: pointer; color: var(--muted); }
+  .empty { color: var(--muted); text-align: center; padding: 26px; }
+  code { background: var(--panel-2); padding: 1px 5px; border-radius: 5px; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <div class="brand">刃研社 <span>DownloadX</span></div>
+    <span class="badge"><span class="dot" id="ws-dot"></span><span id="ws-text">连接中…</span></span>
+    <span class="badge">总速度 <b id="stat-speed">—</b></span>
+    <span class="badge">下载中 <b id="stat-active">0</b></span>
+    <span class="badge">排队 <b id="stat-queued">0</b></span>
+    <span class="badge">暂停 <b id="stat-paused">0</b></span>
+    <span class="badge">已完成 <b id="stat-completed">0</b></span>
+    <span class="badge">连接 <b id="stat-conn">0/0</b></span>
+    <span class="grow"></span>
+    <button id="btn-pause-all" class="ghost">全部暂停</button>
+    <button id="btn-resume-all" class="ghost">全部继续</button>
+  </div>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>新建下载</h2>
+    <div class="row">
+      <input id="f-url" class="grow" placeholder="https://example.com/file.zip  （也支持直接粘贴 Magnet 以外的普通链接）" />
+      <button id="btn-add" class="primary">开始下载</button>
+    </div>
+    <details style="margin-top:10px">
+      <summary>高级选项</summary>
+      <div class="row" style="margin-top:10px">
+        <input id="f-dir" placeholder="保存目录（默认见下）" style="flex:1 1 260px" />
+        <input id="f-name" placeholder="另存文件名（可留空）" style="flex:1 1 200px" />
+        <input id="f-priority" type="number" min="0" max="99" value="5" title="优先级，0 最高" style="width:110px" />
+        <input id="f-conn" type="number" min="1" max="32" value="8" title="分片连接数" style="width:110px" />
+        <input id="f-limit" type="number" min="0" step="0.1" value="0" title="单任务限速 MB/s，0 不限速" style="width:130px" />
+        <input id="f-sha" placeholder="期望 SHA-256（可选）" style="flex:1 1 320px" />
+      </div>
+      <div class="small" style="margin-top:6px">默认下载目录：<code id="download-dir">—</code></div>
+    </details>
+  </section>
+
+  <section class="panel">
+    <div class="row">
+      <h2 style="margin:0">任务</h2>
+      <span class="grow"></span>
+      <select id="filter-status" title="按状态过滤">
+        <option value="">全部状态</option>
+        <option value="downloading">下载中</option>
+        <option value="queued">排队中</option>
+        <option value="paused">已暂停</option>
+        <option value="failed">失败</option>
+        <option value="completed">已完成</option>
+        <option value="canceled">已取消</option>
+      </select>
+      <select id="order-by" title="排序">
+        <option value="created">按创建时间</option>
+        <option value="priority">按优先级</option>
+        <option value="updated">按更新时间</option>
+      </select>
+      <label class="small">全局限速 MB/s <input id="global-limit" type="number" min="0" step="0.1" value="0" style="width:90px" /></label>
+      <label class="small">并发任务 <input id="max-concurrent" type="number" min="1" max="32" value="3" style="width:70px" /></label>
+    </div>
+    <div id="tasks" style="margin-top:12px"></div>
+  </section>
+
+  <section class="panel">
+    <h2>历史记录</h2>
+    <div id="history"></div>
+  </section>
+</main>
+
+<div id="toasts"></div>
+
+<script>
+const $ = (sel) => document.querySelector(sel);
+const state = { tasks: new Map(), filter: "", order: "created", config: null };
+
+function toast(msg, isErr) {
+  const el = document.createElement("div");
+  el.className = "toast" + (isErr ? " err" : "");
+  el.textContent = msg;
+  $("#toasts").appendChild(el);
+  setTimeout(() => el.remove(), isErr ? 6000 : 3000);
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    headers: { "Content-Type": "application/json" },
+    ...opts,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || res.statusText);
+  return data;
+}
+
+function fmtBytes(n) {
+  if (n === null || n === undefined) return "—";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let v = Number(n), i = 0;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return (i === 0 ? v.toFixed(0) : v.toFixed(2)) + " " + units[i];
+}
+function fmtSpeed(s) { return s > 0 ? fmtBytes(s) + "/s" : "—"; }
+function fmtEta(sec) {
+  if (sec === null || sec === undefined || !isFinite(sec) || sec < 0) return "—";
+  sec = Math.floor(sec);
+  if (sec < 60) return sec + "s";
+  if (sec < 3600) return Math.floor(sec / 60) + "m " + String(sec % 60).padStart(2, "0") + "s";
+  return Math.floor(sec / 3600) + "h " + String(Math.floor((sec % 3600) / 60)).padStart(2, "0") + "m";
+}
+const STATUS_TEXT = {
+  queued: "排队中", downloading: "下载中", paused: "已暂停", verifying: "校验中",
+  completed: "已完成", failed: "失败", canceled: "已取消",
+};
+
+function taskActions(t) {
+  const a = [];
+  const add = (action, label, cls = "") =>
+    a.push(`<button data-action="${action}" data-id="${t.id}" class="${cls}">${label}</button>`);
+  if (t.status === "downloading" || t.status === "queued") {
+    add("pause", "暂停");
+    add("cancel", "取消", "danger");
+  } else if (t.status === "paused") {
+    add("resume", "继续", "primary");
+    add("cancel", "取消", "danger");
+  } else if (t.status === "failed" || t.status === "canceled") {
+    add("retry", "续传重试", "primary");
+    add("retry_reset", "从零重下");
+  } else if (t.status === "completed") {
+    add("redownload", "重新下载");
+  }
+  add("remove", "移除", "danger");
+  return a.join("");
+}
+
+function renderTask(t) {
+  const pct = t.total_size ? Math.min(100, t.percent) : (t.status === "completed" ? 100 : 0);
+  const pctText = t.total_size ? pct.toFixed(1) + "%" : (t.status === "completed" ? "100%" : "大小未知");
+  const segs = t.segments_total ? `<span>分片 <b>${t.segments_done}/${t.segments_total}</b></span>` : "";
+  const throttled = (t.effective_connections && t.effective_connections < t.connections)
+    ? `<span>连接 <b>${t.connections}→${t.effective_connections}</b>（服务端限流，已自动降并发）</span>`
+    : "";
+  const speed = t.status === "downloading" ? `<span>速度 <b>${fmtSpeed(t.speed)}</b></span>` : "";
+  const eta = t.status === "downloading" && t.eta ? `<span>剩余 <b>${fmtEta(t.eta)}</b></span>` : "";
+  const sha = t.sha256 ? `<div class="small">SHA-256 <code>${t.sha256}</code>${t.verified === true ? " ✅" : ""}</div>` : "";
+  const err = t.error ? `<div class="err">${escapeHtml(t.error)}</div>` : "";
+  return `
+  <div class="task" data-id="${t.id}">
+    <div class="task-top">
+      <span class="name">${escapeHtml(t.filename)}</span>
+      <span class="status st-${t.status}">${STATUS_TEXT[t.status] || t.status}</span>
+      <span class="badge">优先级 <b>${t.priority}</b></span>
+      <span class="badge">${t.mode === "segmented" ? "多连接" : t.mode === "single" ? "单连接" : "流式"}</span>
+      ${t.resumable ? '<span class="badge">可续传</span>' : '<span class="badge">不可续传</span>'}
+    </div>
+    <div class="url">${escapeHtml(t.url)}</div>
+    <div class="bar"><i style="width:${pct}%"></i></div>
+    <div class="meta">
+      <span><b>${pctText}</b></span>
+      <span>${fmtBytes(t.downloaded_size)} / ${fmtBytes(t.total_size)}</span>
+      ${speed}${eta}${segs}${throttled}
+      <span>重试 <b>${t.retry_count}</b></span>
+      ${t.plan_reason ? `<span>${escapeHtml(t.plan_reason)}</span>` : ""}
+    </div>
+    ${sha}${err}
+    <div class="actions">${taskActions(t)}</div>
+  </div>`;
+}
+
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function renderTasks() {
+  let list = [...state.tasks.values()];
+  if (state.filter) list = list.filter((t) => t.status === state.filter);
+  if (state.order === "priority") list.sort((a, b) => a.priority - b.priority || b.created_at - a.created_at);
+  else if (state.order === "updated") list.sort((a, b) => b.updated_at - a.updated_at);
+  else list.sort((a, b) => b.created_at - a.created_at);
+  $("#tasks").innerHTML = list.length
+    ? list.map(renderTask).join("")
+    : '<div class="empty">还没有任务。粘贴一个链接开始吧。</div>';
+}
+
+function renderStats(s) {
+  $("#stat-speed").textContent = fmtSpeed(s.download_speed || 0);
+  $("#stat-active").textContent = s.active_tasks ?? 0;
+  $("#stat-queued").textContent = s.queued_tasks ?? 0;
+  $("#stat-paused").textContent = s.paused_tasks ?? 0;
+  $("#stat-completed").textContent = s.completed_tasks ?? 0;
+  if (s.connections) $("#stat-conn").textContent = `${s.connections.in_use}/${s.connections.limit}`;
+  if (s.bandwidth) {
+    const g = s.bandwidth.global_rate || 0;
+    if (document.activeElement !== $("#global-limit")) {
+      $("#global-limit").value = g ? (g / 1024 / 1024).toFixed(1) : 0;
+    }
+  }
+  if (s.queue && document.activeElement !== $("#max-concurrent")) {
+    $("#max-concurrent").value = s.queue.max_concurrent;
+  }
+}
+
+async function loadAll() {
+  const [tasks, stats, config, history] = await Promise.all([
+    api("/api/tasks"),
+    api("/api/stats"),
+    api("/api/config"),
+    api("/api/history?limit=20"),
+  ]);
+  state.tasks = new Map(tasks.tasks.map((t) => [t.id, t]));
+  state.config = config;
+  $("#download-dir").textContent = config.download_dir;
+  renderTasks();
+  renderStats(stats);
+  renderHistory(history.records);
+}
+
+function renderHistory(records) {
+  if (!records || !records.length) {
+    $("#history").innerHTML = '<div class="empty">暂无历史</div>';
+    return;
+  }
+  $("#history").innerHTML = `<table><thead><tr>
+    <th>文件</th><th>状态</th><th>大小</th><th>耗时</th><th>结束时间</th><th>错误</th>
+  </tr></thead><tbody>${records.map((r) => `
+    <tr>
+      <td>${escapeHtml(r.filename)}</td>
+      <td><span class="status st-${r.status}">${STATUS_TEXT[r.status] || r.status}</span></td>
+      <td>${fmtBytes(r.total_size)}</td>
+      <td>${fmtEta(r.elapsed)}</td>
+      <td class="small">${r.finished_at ? new Date(r.finished_at * 1000).toLocaleString() : "—"}</td>
+      <td class="small">${escapeHtml(r.error || "")}</td>
+    </tr>`).join("")}</tbody></table>`;
+}
+
+// ---- WebSocket --------------------------------------------------------
+let ws = null;
+function connectWS() {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${proto}://${location.host}/api/ws`);
+  ws.onopen = () => { $("#ws-dot").className = "dot on"; $("#ws-text").textContent = "实时连接"; };
+  ws.onclose = () => {
+    $("#ws-dot").className = "dot off";
+    $("#ws-text").textContent = "已断开，重连中…";
+    setTimeout(connectWS, 2000);
+  };
+  ws.onerror = () => {};
+  ws.onmessage = (ev) => {
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch { return; }
+    if (msg.type === "snapshot") {
+      state.tasks = new Map((msg.data.tasks || []).map((t) => [t.id, t]));
+      renderTasks(); renderStats(msg.data.stats || {});
+      return;
+    }
+    if (msg.type === "stats") { renderStats(msg.data || {}); return; }
+    if (msg.task_id) {
+      if (msg.type === "task_removed") {
+        state.tasks.delete(msg.task_id); renderTasks(); return;
+      }
+      if (msg.type === "task_progress") {
+        const t = state.tasks.get(msg.task_id);
+        if (t) {
+          Object.assign(t, {
+            percent: msg.data.percent, downloaded_size: msg.data.downloaded_size,
+            total_size: msg.data.total_size, speed: msg.data.speed, eta: msg.data.eta,
+          });
+          updateRow(t);
+        }
+        return;
+      }
+      // 其它事件：拉一次单任务最新状态
+      api(`/api/tasks/${msg.task_id}`).then((t) => {
+        state.tasks.set(t.id, t); updateRow(t);
+      }).catch(() => {});
+      if (msg.type === "task_completed" || msg.type === "task_failed") {
+        api("/api/history?limit=20").then((h) => renderHistory(h.records)).catch(() => {});
+      }
+    }
+  };
+}
+
+function updateRow(t) {
+  const node = document.querySelector(`.task[data-id="${t.id}"]`);
+  if (!node) { renderTasks(); return; }
+  if (state.filter && t.status !== state.filter) { node.remove(); return; }
+  node.outerHTML = renderTask(t);
+}
+
+// ---- 交互 -------------------------------------------------------------
+$("#btn-add").addEventListener("click", async () => {
+  const url = $("#f-url").value.trim();
+  if (!url) { toast("先填一个链接", true); return; }
+  const body = { url };
+  if ($("#f-dir").value.trim()) body.save_dir = $("#f-dir").value.trim();
+  if ($("#f-name").value.trim()) body.filename = $("#f-name").value.trim();
+  const priority = parseInt($("#f-priority").value, 10);
+  if (!Number.isNaN(priority)) body.priority = priority;
+  const conn = parseInt($("#f-conn").value, 10);
+  if (!Number.isNaN(conn)) body.connections = conn;
+  const limit = parseFloat($("#f-limit").value);
+  body.speed_limit = (!Number.isNaN(limit) && limit > 0) ? Math.round(limit * 1024 * 1024) : 0;
+  if ($("#f-sha").value.trim()) body.sha256 = $("#f-sha").value.trim();
+  try {
+    const task = await api("/api/tasks", { method: "POST", body: JSON.stringify(body) });
+    state.tasks.set(task.id, task);
+    renderTasks();
+    $("#f-url").value = ""; $("#f-sha").value = "";
+    toast("已加入下载：" + task.filename);
+  } catch (e) { toast("添加失败：" + e.message, true); }
+});
+
+$("#f-url").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#btn-add").click(); });
+document.querySelector("main").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-action]");
+  if (!btn) return;
+  const { action, id } = btn.dataset;
+  btn.disabled = true;
+  try {
+    if (action === "retry_reset") {
+      await api(`/api/tasks/${id}/retry?reset=true`, { method: "POST" });
+    } else if (action === "retry" || action === "resume") {
+      await api(`/api/tasks/${id}/${action}`, { method: "POST" });
+    } else if (action === "redownload") {
+      await api(`/api/tasks/${id}/retry?reset=true`, { method: "POST" });
+    } else if (action === "remove") {
+      if (!confirm("从列表移除该任务？（已下载的文件会保留）")) { btn.disabled = false; return; }
+      await api(`/api/tasks/${id}`, { method: "DELETE" });
+      state.tasks.delete(id); renderTasks(); toast("已移除"); return;
+    } else {
+      await api(`/api/tasks/${id}/${action}`, { method: "POST" });
+    }
+    const t = await api(`/api/tasks/${id}`);
+    state.tasks.set(id, t); updateRow(t);
+  } catch (err) { toast("操作失败：" + err.message, true); }
+  finally { btn.disabled = false; }
+});
+
+$("#btn-pause-all").addEventListener("click", async () => {
+  const r = await api("/api/tasks/pause-all", { method: "POST" });
+  toast(`已暂停 ${r.paused} 个任务`); loadAll();
+});
+$("#btn-resume-all").addEventListener("click", async () => {
+  const r = await api("/api/tasks/resume-all", { method: "POST" });
+  toast(`已恢复 ${r.resumed} 个任务`); loadAll();
+});
+$("#filter-status").addEventListener("change", (e) => { state.filter = e.target.value; renderTasks(); });
+$("#order-by").addEventListener("change", (e) => { state.order = e.target.value; renderTasks(); });
+$("#global-limit").addEventListener("change", async (e) => {
+  const mb = parseFloat(e.target.value) || 0;
+  await api("/api/config", { method: "PATCH", body: JSON.stringify({ global_speed_limit: Math.round(mb * 1024 * 1024) }) });
+  toast(mb > 0 ? `全局限速 ${mb} MB/s` : "已取消全局限速");
+});
+$("#max-concurrent").addEventListener("change", async (e) => {
+  const v = Math.max(1, parseInt(e.target.value) || 1);
+  await api("/api/config", { method: "PATCH", body: JSON.stringify({ max_concurrent_tasks: v }) });
+  toast(`并发任务数 ${v}`);
+});
+
+loadAll().catch((e) => toast("加载失败：" + e.message, true));
+connectWS();
+setInterval(() => { api("/api/stats").then(renderStats).catch(() => {}); }, 3000);
+</script>
+</body>
+</html>
