@@ -144,13 +144,13 @@ DownloadX/
 │   ├── cli.py       # 命令行（前台下载 / 连服务两种模式）
 │   └── config.py    # 配置（默认值 -> config.json -> 环境变量）
 ├── extension/       # 浏览器扩展（MV3）：右键链接直接交给本机引擎
-├── tests/           # 129 个测试，含可复现的本地 HTTP 服务
+├── tests/           # 133 个测试，含可复现的本地 HTTP 服务
 ├── skill/           # 配套 Codex skill（薄封装，见下）
 ├── docs/            # 架构 / API / Agent API / 测试说明
 └── scripts/         # 联调冒烟 + 压测脚本
 ```
 
-规模：60 个 Python 文件、约 12.2k 行（含测试与脚本）、UI 单文件 479 行。
+规模：61 个 Python 文件、约 12.4k 行（含测试与脚本）、UI 单文件 479 行。
 
 ---
 
@@ -186,6 +186,8 @@ HTTP 412 的四个请求头），X/Twitter 交给已有的 `download-x-video` sk
 
 还能定期体检：`check_sites.py` 几秒钟探一遍 B 站 / YouTube / X / HLS / DASH，
 报告"现在还能不能下、最高什么画质"，失败时退出码 1（可接定时任务）。
+
+附加产物用 `--extras` 一次拿全：字幕（转 srt）、章节（`.chapters.txt`）、B 站弹幕（`.danmaku.xml`）。
 
 ---
 

@@ -21,12 +21,15 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
 import urllib.parse
+import urllib.request
+import zlib
 from pathlib import Path
 
 UA_CHROME = (
@@ -164,6 +167,77 @@ def sha256_of(path: Path) -> str:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+# ----------------------------------------------------------------------
+# 附加产物：字幕 / 章节 / B 站弹幕
+# ----------------------------------------------------------------------
+def chapters_text(info: dict) -> str:
+    """把 yt-dlp info JSON 里的 chapters 变成 ``MM:SS  标题`` 的文本。"""
+    lines: list[str] = []
+    for chapter in info.get("chapters") or []:
+        try:
+            start = int(float(chapter.get("start_time") or 0))
+        except (TypeError, ValueError):
+            start = 0
+        title = str(chapter.get("title") or "").strip()
+        lines.append(f"{start // 3600:02d}:{start % 3600 // 60:02d}:{start % 60:02d}  {title}".rstrip())
+    return "\n".join(lines)
+
+
+def collect_subs(produced: Path) -> list[str]:
+    """收集与视频同名的字幕文件。
+
+    不能用 glob：yt-dlp 的文件名带 ``[id]``，glob 会把方括号当字符类，
+    明明下好了却匹配不到。按前缀过滤才可靠。
+    """
+    return sorted(
+        str(path)
+        for path in produced.parent.iterdir()
+        if path.suffix == ".srt" and path.name.startswith(produced.stem)
+    )
+
+
+def decompress_danmaku(data: bytes) -> bytes:
+    """B 站弹幕接口返回 raw deflate（无 Content-Length 依赖），依次尝试三种封装。"""
+    if data[:5] == b"<?xml":
+        return data
+    for wbits in (-zlib.MAX_WBITS, zlib.MAX_WBITS, 16 + zlib.MAX_WBITS):
+        try:
+            return zlib.decompress(data, wbits)
+        except zlib.error:
+            continue
+    raise ValueError("弹幕数据无法解压（既不是明文也不是 deflate/gzip）")
+
+
+def bilibili_bvid(url: str) -> str | None:
+    match = re.search(r"(BV[0-9A-Za-z]{10})", url or "")
+    return match.group(1) if match else None
+
+
+def _bili_get(url: str, timeout: float = 20.0) -> bytes:
+    request = urllib.request.Request(url, headers={
+        "User-Agent": UA_CHROME,
+        "Referer": "https://www.bilibili.com",
+        "Accept-Encoding": "identity",
+    })
+    with urllib.request.urlopen(request, timeout=timeout) as resp:
+        return resp.read()
+
+
+def fetch_danmaku(url: str, timeout: float = 20.0) -> bytes | None:
+    """按 URL 里的 BV 号取第一 P 的弹幕 XML；非 B 站链接返回 None。"""
+    bvid = bilibili_bvid(url)
+    if not bvid:
+        return None
+    pages = json.loads(_bili_get(
+        f"https://api.bilibili.com/x/player/pagelist?bvid={bvid}&jsonp=0", timeout
+    ))
+    entries = (pages or {}).get("data") or []
+    if not entries:
+        raise ValueError(f"取不到分 P 信息：{bvid}")
+    cid = entries[0]["cid"]
+    return decompress_danmaku(_bili_get(f"https://comment.bilibili.com/{cid}.xml", timeout))
 
 
 # ----------------------------------------------------------------------
@@ -368,6 +442,12 @@ def run_playlist(args, python: str, extra: list[str], passthrough: list[str],
             child += ["--cookies", args.cookies]
         if args.cookies_from_browser:
             child += ["--cookies-from-browser", args.cookies_from_browser]
+        if getattr(args, "subs", False):
+            child.append("--subs")
+        if getattr(args, "chapters", False):
+            child.append("--chapters")
+        if getattr(args, "danmaku", False):
+            child.append("--danmaku")
         print(f"[{index}/{len(entries)}] {entry['title'][:60] or entry['url']}")
         code = subprocess.run(child).returncode
         status = "done" if code == 0 else "failed"
@@ -401,6 +481,13 @@ def main() -> int:
     parser.add_argument("--playlist", action="store_true", help="允许下载整个合集/播放列表")
     parser.add_argument("--redo", action="store_true",
                         help="播放列表模式下重下已完成的条目（默认只补失败/新增）")
+    parser.add_argument("--subs", action="store_true", help="同时下载字幕并转成 srt")
+    parser.add_argument("--chapters", action="store_true",
+                        help="导出章节到 <视频>.chapters.txt")
+    parser.add_argument("--danmaku", action="store_true",
+                        help="下载 B 站弹幕到 <视频>.danmaku.xml（其它站点自动跳过）")
+    parser.add_argument("--extras", action="store_true",
+                        help="= --subs --chapters --danmaku（非 B 站自动跳过弹幕）")
     parser.add_argument("--inspect", action="store_true", help="只列格式，不下载")
     parser.add_argument("--cookies", default=None, help="cookies.txt 路径（B 站 1080P+ 需要）")
     parser.add_argument("--cookies-from-browser", default=None,
@@ -425,6 +512,9 @@ def main() -> int:
         return handled
     if not args.url:
         parser.error("缺少 URL（--site-list / --site-set / --site-remove 除外）")
+    if args.extras:
+        args.subs = args.chapters = True
+        args.danmaku = True
 
     if args.dir:
         out_dir = Path(args.dir).expanduser()
@@ -487,6 +577,8 @@ def main() -> int:
         base += ["-x", "--audio-format", "m4a"]
     else:
         base += ["--merge-output-format", "mp4"]
+    if args.chapters:
+        base.append("--write-info-json")
 
     if args.playlist:
         return run_playlist(args, python, extra, passthrough, out_dir, version, host)
@@ -529,6 +621,44 @@ def main() -> int:
         print("! yt-dlp 正常退出但没有报告最终文件路径", file=sys.stderr)
         return 1
 
+    # ---- 附加产物：字幕 / 章节 / 弹幕 ----------------------------------
+    extras: dict[str, object] = {}
+    if args.subs:
+        # 字幕单独跑一遍：拉字幕失败（例如 YouTube 429）不该把已经下好的视频判失败
+        subtitle_command = [
+            python, "-m", "yt_dlp", "--skip-download", "--ignore-errors",
+            "--write-subs", "--write-auto-subs", "--sub-langs", "zh.*,en.*",
+            "--convert-subs", "srt", "-o", template, *extra, *passthrough, args.url,
+        ]
+        subtitle_result = subprocess.run(subtitle_command, capture_output=True)
+        if subtitle_result.returncode != 0:
+            detail = (subtitle_result.stderr or b"").decode("utf-8", "replace").strip().splitlines()
+            extras["subs_error"] = detail[-1][:160] if detail else "字幕下载失败"
+        extras["subs"] = collect_subs(produced)
+    if args.chapters:
+        info_path = produced.parent / (produced.stem + ".info.json")
+        if info_path.exists():
+            try:
+                text = chapters_text(json.loads(info_path.read_text(encoding="utf-8")))
+            finally:
+                info_path.unlink(missing_ok=True)
+            if text:
+                chapter_path = produced.parent / (produced.stem + ".chapters.txt")
+                chapter_path.write_text(text + "\n", encoding="utf-8")
+                extras["chapters"] = str(chapter_path)
+    if args.danmaku:
+        try:
+            data = fetch_danmaku(args.url)
+            if data is None:
+                extras["danmaku_skipped"] = "不是 B 站链接"
+            else:
+                danmaku_path = produced.parent / (produced.stem + ".danmaku.xml")
+                danmaku_path.write_bytes(data)
+                extras["danmaku"] = str(danmaku_path)
+                extras["danmaku_bytes"] = len(data)
+        except Exception as exc:
+            extras["danmaku_error"] = f"{type(exc).__name__}: {exc}"
+
     summary = {
         "url": args.url,
         "site": host,
@@ -537,6 +667,7 @@ def main() -> int:
         "sha256": sha256_of(produced) if produced else None,
         "quality": args.quality,
         "audio_only": args.audio,
+            "extras": extras,
     }
     if args.json:
         print(json.dumps(summary, ensure_ascii=False))
@@ -544,6 +675,8 @@ def main() -> int:
         print(f"\n完成：{summary['path']}")
         print(f"  大小  : {summary['size']} 字节")
         print(f"  SHA-256: {summary['sha256']}")
+        for name, value in extras.items():
+            print(f"  {name:<8}: {value}")
     return 0 if produced else 1
 
 

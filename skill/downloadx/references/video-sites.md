@@ -11,6 +11,19 @@
 | 直链 `.mp4/.mkv/.zip/.iso/...` | **DownloadX 引擎** | 续传、队列、限速、SHA-256 是它的主场 |
 | `.m3u8` / `.mpd` 流清单 | **DownloadX 引擎** | 原生支持：分片下载 + 按分片续传 + 合并成 mp4；加密流 / 直播才交给 yt-dlp |
 
+## 附加产物：字幕 / 章节 / 弹幕
+
+```bash
+python fetch_video.py <url> --extras          # 三样都要
+python fetch_video.py <url> --subs            # 只要字幕
+```
+
+| 产物 | 来源 | 说明 |
+| --- | --- | --- |
+| `<视频>.zh-Hans.srt` 等 | yt-dlp 字幕（含自动字幕）转为 srt | 单独跑一遍，**失败不影响已下好的视频**（YouTube 对字幕请求会 429） |
+| `<视频>.chapters.txt` | info JSON 的 chapters | `HH:MM:SS  标题`，没有章节就不生成 |
+| `<视频>.danmaku.xml` | B 站 `comment.bilibili.com/<cid>.xml` | 只对 B 站；raw deflate 需要解压；取第一个分 P |
+
 统一入口（自动分流，额外参数写在 `--` 之后原样交给 yt-dlp）：
 
 ```bash

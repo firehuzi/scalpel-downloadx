@@ -164,6 +164,10 @@ Four things that otherwise cost an hour each:
   --proxy <url> --site-args "--write-subs"` stores a profile per domain (suffix match, longest
   wins) in the engine state dir's `sites.json`; later runs apply it automatically. Manage with
   `--site-list` / `--site-remove`; a command-line `--proxy` overrides the stored one.
+- **Sidecars are opt-in**: `--subs` (yt-dlp subtitles converted to srt), `--chapters`
+  (`<video>.chapters.txt`), `--danmaku` (Bilibili `<video>.danmaku.xml`), or `--extras` for all
+  three. Each sidecar sits next to the video and is best-effort: a subtitle failure (e.g. YouTube
+  429) never fails the video that already downloaded.
 - **ffmpeg is mandatory above 720P** (separate video/audio streams). It is present here; the
   wrapper warns instead of failing silently when it is missing.
 

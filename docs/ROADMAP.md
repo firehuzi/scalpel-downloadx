@@ -82,10 +82,18 @@
 * 实测（2026-10-17）：YouTube 2160p / 33 格式、B 站 480p（未配 cookies）、HLS、DASH 均可用，
   全程 7.4 秒。
 
+**已完成：字幕 / 章节 / 弹幕（`--extras`）**
+
+* 字幕：yt-dlp 手动 + 自动字幕转 srt，**单独跑一遍**——字幕失败（YouTube 429）不会把已下好的视频判失败。
+* 章节：从 info JSON 提取，写 `<视频>.chapters.txt`（`HH:MM:SS 标题`）。
+* 弹幕：B 站 `comment.bilibili.com/<cid>.xml`，raw deflate 解压后写 `<视频>.danmaku.xml`；
+  非 B 站自动跳过。实测热门视频 600 条弹幕、63 KB。
+* 实测（2026-10-17）：YouTube 短片拿到 2 个 srt + 3 条章节；B 站短片拿到 600 条弹幕。
+
 缺口（按价值排序）：
 
-1. **字幕 / 弹幕 / 章节**：B 站弹幕、YouTube 字幕、章节切分。
-2. **DASH 的补充**：多 Period、`$Bandwidth$` 模板、DRM 之外的加密方案。
+1. **DASH 的补充**：多 Period、`$Bandwidth$` 模板、DRM 之外的加密方案。
+2. **弹幕格式转换**：目前是原始 XML（DanDanPlay 等播放器可直接吃）；可选转 ASS 内嵌。
 
 **验收**：三个站点（YouTube / B 站 / X）各跑通 1080P（或站点上限）+ 失败自动重试 + 结果哈希记录。
 
