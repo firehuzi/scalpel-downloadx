@@ -122,7 +122,7 @@ Content-Type: application/json
   "scheduler": { "running": 2, "started_total": 21, "finished_total": 19 },
   "connections": { "limit": 32, "in_use": 12, "available": 20, "peak_in_use": 18 },
   "network_online": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "app": "DownloadX"
 }
 ```

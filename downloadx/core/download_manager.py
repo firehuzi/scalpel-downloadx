@@ -151,7 +151,7 @@ class DownloadManager:
             raise InvalidOperation("管理器正在关闭，不再接受新任务")
         url = (url or "").strip()
         if not url.lower().startswith(("http://", "https://")):
-            raise ValueError("v0.1 只支持 http/https 链接")
+            raise ValueError("只支持 http/https 链接")
 
         task = DownloadTask.create(
             url,

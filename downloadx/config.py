@@ -14,7 +14,7 @@ from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
-from .version import APP_NAME, CONFIG_FILE
+from .version import APP_NAME, CONFIG_FILE, __version__
 
 ENV_PREFIX = "DOWNLOADX_"
 
@@ -87,7 +87,7 @@ class Config:
     stream_max_height: int = 0
 
     # ---- 网络 ----
-    user_agent: str = f"{APP_NAME}/0.1.0 (+local)"
+    user_agent: str = f"{APP_NAME}/{__version__} (+local)"
     network_monitor: bool = False
     network_probe_urls: tuple[str, ...] = (
         "https://www.msftconnecttest.com/connecttest.txt",

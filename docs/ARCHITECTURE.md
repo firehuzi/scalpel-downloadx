@@ -255,6 +255,8 @@ I/O 全部是 asyncio；磁盘写入放在线程池（`asyncio.to_thread`），�
 | network/range_request | `network/range_request.py` | |
 | network/retry | `network/retry.py` | |
 | network/network_monitor | `network/network_monitor.py` | 默认关闭 |
+| — | `network/hls.py` | **新增**：HLS 主/媒体播放列表解析（P2） |
+| — | `network/dash.py` | **新增**：MPD 解析（SegmentTemplate / SegmentList / SegmentBase，P2） |
 | storage/file_writer | `storage/file_writer.py` | |
 | storage/segment_store | `storage/segment_store.py` | 分片账本 + 进度 |
 | storage/metadata_store | `storage/metadata_store.py` | |
@@ -267,9 +269,9 @@ I/O 全部是 asyncio；磁盘写入放在线程池（`asyncio.to_thread`），�
 | api/local_api | `api/local_api.py` | REST + WebSocket + 静态 UI |
 | api/agent_api | `api/agent_api.py` | 工具清单 + 调用 + 自然语言 |
 | ui | `ui/index.html` | 单文件，无构建、无 CDN |
-| tests / docs | `tests/` `docs/` | 100 个测试 |
+| tests / docs | `tests/` `docs/` | 129 个测试 |
 
-统计口径：49 个 Python 文件、约 7743 行（含测试与脚本），UI 单文件 440 行。
+统计口径：60 个 Python 文件、约 12210 行（含测试与脚本），UI 单文件 479 行。
 
 ---
 

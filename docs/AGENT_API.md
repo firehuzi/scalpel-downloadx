@@ -30,7 +30,7 @@ GET /agent/manifest
 ```json
 {
   "app": "DownloadX",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "principles": [
     "下载引擎独立运行，LLM 不是必需依赖",
     "所有工具调用都是确定性的，可脱机执行",

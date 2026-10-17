@@ -146,7 +146,7 @@ python <skill-dir>/scripts/fetch_video.py <url> -- --write-subs   # extra yt-dlp
 | YouTube, Bilibili, Vimeo, Twitch, AcFun, 抖音, niconico… | yt-dlp | the only thing that can extract them |
 | X / Twitter status | the `download-x-video` skill | purpose-built, cookie-free, self-updating |
 | direct media link (`.mp4`, `.zip`, `.iso`…) | the DownloadX engine | resume, queue, checksum are its job |
-| `.m3u8` / `.mpd` | yt-dlp | the engine does not parse stream manifests |
+| `.m3u8` / `.mpd` | the DownloadX engine | native HLS/DASH: per-segment download, resume, remux to mp4 (yt-dlp only for encrypted or live streams) |
 
 Four things that otherwise cost an hour each:
 

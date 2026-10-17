@@ -8,6 +8,8 @@ from typing import AsyncIterator
 
 import aiohttp
 
+from ..version import APP_NAME, __version__
+
 
 class ConnectionPool:
     """限制并发连接数，并集中管理 DNS 缓存与 TCP 连接复用。
@@ -24,7 +26,7 @@ class ConnectionPool:
         connect_timeout: float = 15.0,
         sock_read_timeout: float = 30.0,
         total_timeout: float | None = None,
-        user_agent: str = "DownloadX/0.1.0",
+    user_agent: str = f"{APP_NAME}/{__version__}",
     ) -> None:
         self.limit = max(1, limit)
         self.limit_per_host = max(1, limit_per_host)

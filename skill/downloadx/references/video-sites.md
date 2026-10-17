@@ -9,7 +9,7 @@
 | X / Twitter 状态链接 | `download-x-video` skill 的 `x_video.py` | 免 cookie、免账号、带自更新；yt-dlp 兜底 |
 | 其它 yt-dlp 站点（AcFun / 抖音 / Vimeo / Twitch / niconico…） | yt-dlp | 视站点可能需要 cookie |
 | 直链 `.mp4/.mkv/.zip/.iso/...` | **DownloadX 引擎** | 续传、队列、限速、SHA-256 是它的主场 |
-| `.m3u8` / `.mpd` 流清单 | yt-dlp | 引擎不解析流清单，别硬塞给它 |
+| `.m3u8` / `.mpd` 流清单 | **DownloadX 引擎** | 原生支持：分片下载 + 按分片续传 + 合并成 mp4；加密流 / 直播才交给 yt-dlp |
 
 统一入口（自动分流，额外参数写在 `--` 之后原样交给 yt-dlp）：
 

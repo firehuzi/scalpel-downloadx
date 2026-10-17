@@ -1,4 +1,4 @@
-# 刃研社-DownloadX v0.1
+# 刃研社-DownloadX v0.2
 
 Windows 优先、跨平台设计、本地优先、无广告、低资源占用、**可被 Agent 调用**的下载器。
 
@@ -150,7 +150,7 @@ DownloadX/
 └── scripts/         # 联调冒烟 + 压测脚本
 ```
 
-规模：49 个 Python 文件、约 7.7k 行（含测试与脚本）、UI 单文件 440 行。
+规模：60 个 Python 文件、约 12.2k 行（含测试与脚本）、UI 单文件 479 行。
 
 ---
 
@@ -207,7 +207,7 @@ python scripts\install_to_assistant.py --no-app   # 只同步技能
 
 中台开了登录之后 API 需要密码；不给 `--password` 时脚本自动退回**直接写 `data/hub.db`**
 （写前自动备份 `hub.db.bak-<时间戳>-downloadx`，并同步写 `data/skills/<id>.md` 镜像）。
-两条路都实测过：应用行里的启动命令能真的拉起面板（`/api/health` 返回 `DownloadX 0.1.0`），
+两条路都实测过：应用行里的启动命令能真的拉起面板（`/api/health` 返回 `DownloadX 0.2.0`），
 页面刷新即可见、不需要重启中台。
 
 注意面板和命令行共用同一个引擎状态目录（`%LOCALAPPDATA%\DownloadX`），而引擎是单实例：
@@ -279,7 +279,7 @@ python -m downloadx serve
 - 单实例锁是"心跳 + 过期接管"，不依赖 Windows 专有 API，跨平台一致。
 - 流式模式（服务端不给 `Content-Length`）无法断点续传，这是 HTTP 协议本身的限制。
 - 视频站点只做**分流**（交给 yt-dlp / 已有的 X skill），引擎自己不做解析；本机没有的工具不会自动安装。
-- BT / Magnet / 账号 / 云同步 / LLM 对话不在 v0.1 内，按 [docs/ROADMAP.md](docs/ROADMAP.md) 分阶段推进。
+- BT / Magnet / 账号 / 云同步 / LLM 对话尚未实现，按 [docs/ROADMAP.md](docs/ROADMAP.md) 分阶段推进。
 
 ---
 

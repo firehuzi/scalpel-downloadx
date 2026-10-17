@@ -12,7 +12,7 @@ from __future__ import annotations
 
 APP_DISPLAY_NAME = "刃研社-DownloadX"
 APP_NAME = "DownloadX"  # 运行时标识，见上方说明
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 # 磁盘元数据 schema 版本。字段结构变化时递增，并在 metadata_store 中做迁移。
 SCHEMA_VERSION = 2

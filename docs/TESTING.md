@@ -2,7 +2,7 @@
 
 ```powershell
 cd outputs\DownloadX
-python -m pytest              # 全量：100 个测试，约 80 秒
+python -m pytest              # 全量：129 个测试，约 85 秒
 python -m pytest tests/test_units.py          # 纯单元，1 秒
 python -m pytest tests/test_e2e_download.py   # 下载行为端到端
 python -m pytest tests/test_e2e_control.py    # 暂停 / 续传 / 崩溃恢复
@@ -72,14 +72,24 @@ python scripts/smoke_live.py                  # 拉起真实服务进程联调
 其中聚合限速与每连接限速两个端点，是测试服务器对"静默按连接限速"与"并行真有用"
 两种真实服务端行为的确定性建模。
 
-**`tests/test_api.py`（19 个）** —— REST 与 Agent
+**`tests/test_api.py`（27 个）** —— REST 与 Agent
 
 健康检查 / 配置、创建下载并完成、暂停恢复、改优先级与删除、错误码映射
 （404 / 409 / 400）、探测接口、统计与历史、WebSocket 快照、manifest 结构、
 工具调用、工具错误、自然语言（下载 / 列表 / 统计 / 暂停 / 只出计划 / 听不懂）、
 UI 首页可访问。
 
-**`tests/test_cli.py`（12 个）** —— 命令行
+**`tests/test_cli.py`（14 个）** —— 命令行
+
+**流媒体与工具链（20 个）**
+
+- `tests/test_e2e_hls.py`（5 个）：主/媒体播放列表解析、加密流与直播拒绝、分片拼接字节比对、
+  暂停后续传不重下、用 ffmpeg 现场生成真 HLS 再 remux（ffprobe 校验容器与音视频轨）。
+- `tests/test_e2e_dash.py`（6 个）：SegmentTemplate（含 SegmentTimeline）/ SegmentList / DRM 拒绝、
+  max_height 选轨，以及真 ffmpeg 生成的双轨 DASH 端到端合并。
+- `tests/test_video_playlist.py`（3 个）：播放列表逐条执行、状态文件续跑（只补失败项）、`--redo`。
+- `tests/test_site_profiles.py`（4 个）：域名后缀匹配（最长优先、伪域名不误匹配）、档案增删查。
+- `tests/test_check_sites.py`（2 个）：站点回归脚本的离线部分（画质提取、清单判定）。
 
 前台下载、JSON 输出、列表 / 详情 / 统计、暂停 → 重试、取消 → 移除（含删文件）、
 探测、工具清单、自然语言（进程内会自动等到下完）、配置读写、坏 URL 退出码、
@@ -104,7 +114,7 @@ python scripts/smoke_live.py
 最近一次运行结果（本机）：
 
 ```
-[1] 服务进程 pid=25784  健康检查: DownloadX 0.1.0
+[1] 服务进程 pid=25784  健康检查: DownloadX 0.2.0
 [2] Web UI: HTTP 200, 19935 字节, 标题包含 DownloadX: True
 [3] 探测: demo-package.bin  4194304 字节  可续传=True
 [4] 创建任务 c3b8ff41  mode=segmented
