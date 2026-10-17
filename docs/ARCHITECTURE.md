@@ -269,9 +269,9 @@ I/O 全部是 asyncio；磁盘写入放在线程池（`asyncio.to_thread`），�
 | api/local_api | `api/local_api.py` | REST + WebSocket + 静态 UI |
 | api/agent_api | `api/agent_api.py` | 工具清单 + 调用 + 自然语言 |
 | ui | `ui/index.html` | 单文件，无构建、无 CDN |
-| tests / docs | `tests/` `docs/` | 133 个测试 |
+| tests / docs | `tests/` `docs/` | 137 个测试 |
 
-统计口径：61 个 Python 文件、约 12414 行（含测试与脚本），UI 单文件 479 行。
+统计口径：61 个 Python 文件、约 12498 行（含测试与脚本），UI 单文件 479 行。
 
 ---
 

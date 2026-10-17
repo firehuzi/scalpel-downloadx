@@ -2,7 +2,7 @@
 
 ```powershell
 cd outputs\DownloadX
-python -m pytest              # 全量：133 个测试，约 85 秒
+python -m pytest              # 全量：137 个测试，约 85 秒
 python -m pytest tests/test_units.py          # 纯单元，1 秒
 python -m pytest tests/test_e2e_download.py   # 下载行为端到端
 python -m pytest tests/test_e2e_control.py    # 暂停 / 续传 / 崩溃恢复
@@ -81,12 +81,13 @@ UI 首页可访问。
 
 **`tests/test_cli.py`（14 个）** —— 命令行
 
-**流媒体与工具链（24 个）**
+**流媒体与工具链（28 个）**
 
 - `tests/test_e2e_hls.py`（5 个）：主/媒体播放列表解析、加密流与直播拒绝、分片拼接字节比对、
   暂停后续传不重下、用 ffmpeg 现场生成真 HLS 再 remux（ffprobe 校验容器与音视频轨）。
-- `tests/test_e2e_dash.py`（6 个）：SegmentTemplate（含 SegmentTimeline）/ SegmentList / DRM 拒绝、
-  max_height 选轨，以及真 ffmpeg 生成的双轨 DASH 端到端合并。
+- `tests/test_e2e_dash.py`（10 个）：SegmentTemplate（含 SegmentTimeline）/ SegmentList / DRM 拒绝、
+  max_height 选轨、**多 Period 拼接**（含"init 不同要拒绝"）与 **`$Bandwidth$` 模板**、
+  dynamic（直播）拒绝，以及真 ffmpeg 生成的双轨 DASH 端到端合并。
 - `tests/test_video_playlist.py`（3 个）：播放列表逐条执行、状态文件续跑（只补失败项）、`--redo`。
 - `tests/test_site_profiles.py`（4 个）：域名后缀匹配（最长优先、伪域名不误匹配）、档案增删查。
 - `tests/test_check_sites.py`（2 个）：站点回归脚本的离线部分（画质提取、清单判定）。

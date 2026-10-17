@@ -102,6 +102,62 @@ def test_parse_rejects_drm():
     assert "DRM" in str(info.value)
 
 
+def _period_mpd(init1: str, init2: str) -> str:
+    def block(index: int, init: str) -> str:
+        return f"""
+    <Period duration="PT4S">
+      <AdaptationSet mimeType="video/mp4">
+        <Representation id="v" bandwidth="800000" width="640" height="360">
+          <SegmentTemplate media="p{index}/$Number$.m4s" initialization="{init}"
+                           duration="2" timescale="1" startNumber="1"/>
+        </Representation>
+      </AdaptationSet>
+    </Period>"""
+
+    return (
+        '<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" mediaPresentationDuration="PT8S">'
+        + block(1, init1)
+        + block(2, init2)
+        + "\n</MPD>"
+    )
+
+
+def test_parse_multi_period_merges_segments_in_order():
+    tracks = dash.parse(_period_mpd("init.mp4", "init.mp4"), "https://x/manifest.mpd")
+    assert len(tracks) == 1
+    names = [url.rsplit("/", 1)[-1] for url in tracks[0].urls]
+    assert names == ["1.m4s", "2.m4s", "1.m4s", "2.m4s"]
+    assert tracks[0].urls[0].endswith("p1/1.m4s")
+    assert tracks[0].urls[2].endswith("p2/1.m4s")
+
+
+def test_parse_multi_period_with_different_inits_is_rejected():
+    with pytest.raises(dash.DashError) as info:
+        dash.parse(_period_mpd("init1.mp4", "init2.mp4"), "https://x/manifest.mpd")
+    assert "多 Period" in str(info.value)
+
+
+def test_parse_bandwidth_template():
+    mpd = """<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" mediaPresentationDuration="PT4S">
+      <Period><AdaptationSet mimeType="video/mp4">
+        <Representation id="v" bandwidth="500000" width="320" height="240">
+          <SegmentTemplate media="seg-$Bandwidth$-$Number$.m4s"
+                           initialization="init-$Bandwidth$.mp4"
+                           duration="2" timescale="1" startNumber="1"/>
+        </Representation>
+      </AdaptationSet></Period></MPD>"""
+    track = dash.parse(mpd, "https://x/manifest.mpd")[0]
+    assert track.init.endswith("init-500000.mp4")
+    assert [url.rsplit("/", 1)[-1] for url in track.urls] == ["seg-500000-1.m4s", "seg-500000-2.m4s"]
+
+
+def test_parse_rejects_dynamic_mpd():
+    mpd = MPD.replace('type="static"', 'type="dynamic"')
+    with pytest.raises(dash.DashError) as info:
+        dash.parse(mpd, "https://x/manifest.mpd")
+    assert "动态" in str(info.value)
+
+
 @pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="需要 ffmpeg")
 def test_dash_real_ffmpeg_download_and_mux(config, server, tmp_path):
     """用 ffmpeg 生成真 DASH（视频轨 + 音频轨分开），下载后合并成 mp4。"""

@@ -144,13 +144,13 @@ DownloadX/
 │   ├── cli.py       # 命令行（前台下载 / 连服务两种模式）
 │   └── config.py    # 配置（默认值 -> config.json -> 环境变量）
 ├── extension/       # 浏览器扩展（MV3）：右键链接直接交给本机引擎
-├── tests/           # 133 个测试，含可复现的本地 HTTP 服务
+├── tests/           # 137 个测试，含可复现的本地 HTTP 服务
 ├── skill/           # 配套 Codex skill（薄封装，见下）
 ├── docs/            # 架构 / API / Agent API / 测试说明
 └── scripts/         # 联调冒烟 + 压测脚本
 ```
 
-规模：61 个 Python 文件、约 12.4k 行（含测试与脚本）、UI 单文件 479 行。
+规模：61 个 Python 文件、约 12.5k 行（含测试与脚本）、UI 单文件 479 行。
 
 ---
 

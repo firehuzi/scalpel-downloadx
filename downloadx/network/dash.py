@@ -75,8 +75,11 @@ def _first(node: ET.Element, name: str) -> ET.Element | None:
     return None
 
 
-def _expand(template: str, *, rep_id: str = "", number: int | None = None, time: int | None = None) -> str:
+def _expand(template: str, *, rep_id: str = "", number: int | None = None,
+            time: int | None = None, bandwidth: int | None = None) -> str:
     out = template.replace("$RepresentationID$", rep_id)
+    if bandwidth is not None:
+        out = out.replace("$Bandwidth$", str(bandwidth))
     if time is not None:
         out = out.replace("$Time$", str(time))
     if number is not None:
@@ -132,7 +135,7 @@ def _track_from_representation(
             return None
         init_tmpl = template.get("initialization") or ""
         if init_tmpl:
-            track.init = urljoin(base, _expand(init_tmpl, rep_id=rep_id))
+            track.init = urljoin(base, _expand(init_tmpl, rep_id=rep_id, bandwidth=bandwidth))
         timescale = float(template.get("timescale") or 1)
         start_number = int(template.get("startNumber") or 1)
         timeline = _first(template, "SegmentTimeline")
@@ -140,7 +143,9 @@ def _track_from_representation(
         if timeline is not None:
             runs = _timeline(timeline)
             for time_value, _ in runs:
-                track.urls.append(urljoin(base, _expand(media, rep_id=rep_id, time=time_value)))
+                track.urls.append(urljoin(
+                    base, _expand(media, rep_id=rep_id, time=time_value, bandwidth=bandwidth)
+                ))
         else:
             duration_attr = float(template.get("duration") or 0)
             if duration_attr <= 0 or period_duration <= 0:
@@ -149,7 +154,8 @@ def _track_from_representation(
             count = max(1, math.ceil(period_duration / seg_seconds))
             for i in range(count):
                 track.urls.append(
-                    urljoin(base, _expand(media, rep_id=rep_id, number=start_number + i))
+                    urljoin(base, _expand(media, rep_id=rep_id, number=start_number + i,
+                                          bandwidth=bandwidth))
                 )
         return track if track.urls else None
 
@@ -178,29 +184,10 @@ def _track_from_representation(
     return None
 
 
-def parse(text: str, base_url: str, max_height: int | None = None) -> list[DashTrack]:
-    try:
-        root = ET.fromstring(text)
-    except ET.ParseError as exc:
-        raise DashError(f"MPD 解析失败：{exc}") from exc
-    if _local(root.tag) != "MPD":
-        raise DashError("不是 DASH MPD 文档")
-
-    if _first(root, "ContentProtection") is not None:
-        raise DashError("带 ContentProtection（DRM）的流不在支持范围")
-
-    mpd_duration = parse_duration(root.get("mediaPresentationDuration"))
-    base = _base_chain(root, base_url)
-
-    periods = _children(root, "Period")
-    if not periods:
-        raise DashError("MPD 里没有 Period")
-    period = periods[0]
-    period_base = _base_chain(period, base)
-    period_duration = parse_duration(period.get("duration")) or mpd_duration
-    if period_duration <= 0:
-        raise DashError("无法确定时长（mediaPresentationDuration 缺失）")
-
+def _period_tracks(
+    period: ET.Element, base: str, period_duration: float, max_height: int | None
+) -> list[DashTrack]:
+    """把一个 Period 里的音视频轨挑出来（每种只留最好的一条）。"""
     tracks: list[DashTrack] = []
     for adaptation in _children(period, "AdaptationSet"):
         if _first(adaptation, "ContentProtection") is not None:
@@ -214,16 +201,11 @@ def parse(text: str, base_url: str, max_height: int | None = None) -> list[DashT
         else:
             continue
 
-        adaptation_base = _base_chain(adaptation, period_base)
-        # SegmentTemplate 也可能写在 AdaptationSet 上，Representation 继承
+        adaptation_base = _base_chain(adaptation, base)
         inherited_template = _first(adaptation, "SegmentTemplate")
-        reps = _children(adaptation, "Representation")
-        if not reps:
-            continue
         candidates: list[DashTrack] = []
-        for rep in reps:
+        for rep in _children(adaptation, "Representation"):
             if inherited_template is not None and _first(rep, "SegmentTemplate") is None:
-                # 把 AdaptationSet 的模板挂到 rep 上（浅拷贝一个即可）
                 rep.append(inherited_template)
             track = _track_from_representation(
                 rep,
@@ -244,7 +226,53 @@ def parse(text: str, base_url: str, max_height: int | None = None) -> list[DashT
             tracks.append(max(usable, key=lambda t: (t.height, t.bandwidth)))
         else:
             tracks.append(max(candidates, key=lambda t: t.bandwidth))
-
-    if not tracks:
-        raise DashError("MPD 里没有可下载的音视频轨")
     return tracks
+
+
+def parse(text: str, base_url: str, max_height: int | None = None) -> list[DashTrack]:
+    """解析 MPD。
+
+    * 只接受静态播放列表（``type="dynamic"`` 是直播，直接拒绝）；
+    * 支持多个 Period：按顺序把各 Period 的分片拼到同一条轨上；
+      若不同 Period 的初始化段不同，明确报错（拼接会出错，交给 yt-dlp 更稳）。
+    """
+    try:
+        root = ET.fromstring(text)
+    except ET.ParseError as exc:
+        raise DashError(f"MPD 解析失败：{exc}") from exc
+    if _local(root.tag) != "MPD":
+        raise DashError("不是 DASH MPD 文档")
+    if (root.get("type") or "static").strip().lower() == "dynamic":
+        raise DashError("动态 MPD（直播）不在支持范围")
+
+    mpd_duration = parse_duration(root.get("mediaPresentationDuration"))
+    base = _base_chain(root, base_url)
+    periods = _children(root, "Period")
+    if not periods:
+        raise DashError("MPD 里没有 Period")
+
+    merged: dict[str, DashTrack] = {}
+    cursor = 0.0
+    for period in periods:
+        period_base = _base_chain(period, base)
+        start = parse_duration(period.get("start")) if period.get("start") else cursor
+        duration = parse_duration(period.get("duration"))
+        if duration <= 0:
+            duration = (mpd_duration - start) if mpd_duration else 0.0
+        if duration <= 0:
+            raise DashError("无法确定时长（mediaPresentationDuration 缺失）")
+
+        for track in _period_tracks(period, period_base, duration, max_height):
+            existing = merged.get(track.kind)
+            if existing is None:
+                merged[track.kind] = track
+                continue
+            if existing.init and track.init and existing.init != track.init:
+                raise DashError("多 Period 且初始化段不同，暂不支持拼接（请交给 yt-dlp）")
+            existing.init = existing.init or track.init
+            existing.urls.extend(track.urls)
+        cursor = start + duration
+
+    if not merged:
+        raise DashError("MPD 里没有可下载的音视频轨")
+    return list(merged.values())
