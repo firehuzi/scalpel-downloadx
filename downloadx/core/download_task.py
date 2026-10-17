@@ -73,14 +73,12 @@ class DownloadTask:
     sha256: str | None = None
     verified: bool | None = None
 
-    # ---- HLS（mode == "hls" 时使用）------------------------------------
-    #: 分片 URL 列表，顺序即分片索引（持久化，恢复时据此续传）
-    hls_playlist: list[str] = field(default_factory=list)
-    #: fMP4 的初始化段（EXT-X-MAP）
-    hls_init: str = ""
-    #: 已完成的分片索引
-    hls_done: list[int] = field(default_factory=list)
-    hls_total: int = 0
+    # ---- 流式协议（HLS / DASH）：每条流轨一个 dict ----------------------
+    #: 形如 ``[{"kind": "video", "init": "…", "urls": [...], "done": [...]}]``。
+    #: 分片索引即该轨内的顺序；``done`` 是已完成的分片下标（持久化，用于断点续传）。
+    stream_tracks: list[dict[str, Any]] = field(default_factory=list)
+    #: 所有轨的分片总数（用于百分比，避免每次重算）
+    stream_count: int = 0
 
     # ---- 备注 ----------------------------------------------------------
     note: str = ""
@@ -186,9 +184,13 @@ class DownloadTask:
 
     @property
     def percent(self) -> float:
-        if self.mode == "hls" and self.hls_total:
-            return round(len(self.hls_done) / self.hls_total * 100, 2)
+        if self.mode in ("hls", "dash") and self.stream_count:
+            return round(self.stream_done_count / self.stream_count * 100, 2)
         return round(self.progress.percent, 2)
+
+    @property
+    def stream_done_count(self) -> int:
+        return sum(len(track.get("done") or []) for track in self.stream_tracks)
 
     @property
     def remaining(self) -> int | None:
@@ -246,10 +248,8 @@ class DownloadTask:
             "note": self.note,
             "plan_reason": self.plan_reason,
             "filename_locked": self.filename_locked,
-            "hls_playlist": list(self.hls_playlist),
-            "hls_init": self.hls_init,
-            "hls_done": list(self.hls_done),
-            "hls_total": self.hls_total,
+            "stream_tracks": [dict(track) for track in self.stream_tracks],
+            "stream_count": self.stream_count,
         }
 
     @classmethod
@@ -296,10 +296,8 @@ class DownloadTask:
             note=str(data.get("note") or ""),
             plan_reason=str(data.get("plan_reason") or ""),
             filename_locked=bool(data.get("filename_locked", False)),
-            hls_playlist=[str(u) for u in (data.get("hls_playlist") or [])],
-            hls_init=str(data.get("hls_init") or ""),
-            hls_done=[int(i) for i in (data.get("hls_done") or [])],
-            hls_total=int(data.get("hls_total") or 0),
+            stream_tracks=list(data.get("stream_tracks") or _legacy_hls_track(data)),
+            stream_count=int(data.get("stream_count") or _legacy_hls_count(data)),
         )
         return task
 
@@ -322,8 +320,8 @@ class DownloadTask:
             "downloaded_size": progress.received,
             "percent": round(progress.percent, 2),
             "remaining_size": progress.remaining,
-            "segments_total": self.hls_total if self.mode == "hls" else progress.total_segments,
-            "segments_done": len(self.hls_done) if self.mode == "hls" else progress.done_segments,
+            "segments_total": self.stream_count if self.mode in ("hls", "dash") else progress.total_segments,
+            "segments_done": self.stream_done_count if self.mode in ("hls", "dash") else progress.done_segments,
             "speed": round(speed, 2),
             "eta": eta,
             "resumable": self.resumable,
@@ -346,3 +344,24 @@ class DownloadTask:
         if extra:
             payload.update(extra)
         return payload
+
+
+def _legacy_hls_track(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """schema v1 的 ``hls_*`` 字段 -> v2 的单轨结构（读旧任务时兜底）。"""
+    urls = [str(u) for u in (data.get("hls_playlist") or [])]
+    if not urls:
+        return []
+    return [
+        {
+            "kind": "media",
+            "init": str(data.get("hls_init") or ""),
+            "urls": urls,
+            "done": [int(i) for i in (data.get("hls_done") or [])],
+        }
+    ]
+
+
+def _legacy_hls_count(data: dict[str, Any]) -> int:
+    if data.get("stream_count"):
+        return int(data["stream_count"])
+    return int(data.get("hls_total") or 0) or len(data.get("hls_playlist") or [])

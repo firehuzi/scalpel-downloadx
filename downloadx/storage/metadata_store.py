@@ -201,5 +201,20 @@ class MetadataStore:
             data.setdefault("priority", 5)
             data.setdefault("retry_count", 0)
             data.setdefault("updated_at", data.get("created_at", time.time()))
+        if version < 2:
+            # v1 的 HLS 专用字段 -> v2 的通用"流轨"结构（HLS / DASH 共用）
+            urls = [str(u) for u in (data.get("hls_playlist") or [])]
+            if urls and not data.get("stream_tracks"):
+                data["stream_tracks"] = [
+                    {
+                        "kind": "media",
+                        "init": str(data.get("hls_init") or ""),
+                        "urls": urls,
+                        "done": [int(i) for i in (data.get("hls_done") or [])],
+                    }
+                ]
+                data["stream_count"] = len(urls)
+            for key in ("hls_playlist", "hls_init", "hls_done", "hls_total"):
+                data.pop(key, None)
         data["schema_version"] = SCHEMA_VERSION
         return data

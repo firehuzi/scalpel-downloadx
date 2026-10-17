@@ -42,20 +42,28 @@
 
 现状：已经能把 YouTube / B 站等交给 yt-dlp，X 交给 `download-x-video`，并内置了 B 站 412 的四个请求头。
 
-**已完成：HLS（.m3u8）原生下载**（`network/hls.py` + `NetworkWorker._run_hls`）——
-主播放列表按分辨率/码率选变体、分片并发下载（默认上限 8）、**按分片断点续传**
-（已完成的分片写进任务元数据，暂停/崩溃恢复不重下）、最后按索引拼接，
-有 ffmpeg 时 remux 成 mp4（`-c copy`，不转码）。加密流（EXT-X-KEY）、直播（无 ENDLIST）、
-EXT-X-BYTERANGE 明确拒绝并给出可读错误。测试覆盖：解析、拼接字节比对、暂停后续传不重下、
-用 ffmpeg 现场生成真 HLS 再 remux 并用 ffprobe 验证音视频轨。
+**已完成：HLS 与 DASH 原生下载**（`network/hls.py`、`network/dash.py` + `_run_stream`）——
+两条协议共用同一套"流轨"机制：按分辨率/码率选轨 → 分片并发下载（上限 8）→
+**按分片断点续传**（已完成分片写进任务元数据，恢复时还会以磁盘实物为准）→ 按索引拼接 →
+需要时用 ffmpeg `-c copy` 合并/重封装（不转码）。
+
+* **HLS**：master 选变体、EXT-X-MAP init 段；加密流（EXT-X-KEY）、直播（无 ENDLIST）、
+  EXT-X-BYTERANGE 明确拒绝。
+* **DASH**：SegmentTemplate（`$Number$` / `$Time$` / `$RepresentationID$` / SegmentTimeline）、
+  SegmentList、SegmentBase；视频+音频双轨分别下载后 mux；`ContentProtection`（DRM）拒绝。
+  清单按"时长/分段时长"推算出的**尾部分片常常并不存在**（实测 ffmpeg 生成的 MPD 就是如此），
+  尾段 404 按"流结束"处理，从计划里摘掉而不是让任务失败。
+
+测试覆盖：解析（含 Timeline / SegmentList / DRM 拒绝）、拼接字节比对、暂停后续传不重下、
+用 ffmpeg 现场生成真 HLS / 真 DASH 再合并，并用 ffprobe 验证音视频轨、容器确实是 mp4。
 
 缺口（按价值排序）：
 
-1. **DASH（.mpd）**：目前只有 HLS；DASH 需要解析 SegmentTemplate/BaseURL，或交给 yt-dlp。
-2. **字幕 / 弹幕 / 章节**：B 站弹幕、YouTube 字幕、章节切分。
-3. **Cookie 与代理管理**：现在靠 `--cookies` 手动传；应支持按站点保存 cookie 文件与代理。
-4. **播放列表批量**：`--playlist` 已有，但缺"按条目入队 + 单独重试"。
-5. **站点适配回归**：把"这个站点当前能不能下、最高什么画质"做成可测的检查。
+1. **字幕 / 弹幕 / 章节**：B 站弹幕、YouTube 字幕、章节切分。
+2. **Cookie 与代理管理**：现在靠 `--cookies` 手动传；应支持按站点保存 cookie 文件与代理。
+3. **播放列表批量**：`--playlist` 已有，但缺"按条目入队 + 单独重试"。
+4. **站点适配回归**：把"这个站点当前能不能下、最高什么画质"做成可测的检查。
+5. **DASH 的补充**：多 Period、`$Bandwidth$` 模板、DRM 之外的加密方案。
 
 **验收**：三个站点（YouTube / B 站 / X）各跑通 1080P（或站点上限）+ 失败自动重试 + 结果哈希记录。
 

@@ -15,7 +15,7 @@ APP_NAME = "DownloadX"  # 运行时标识，见上方说明
 __version__ = "0.1.0"
 
 # 磁盘元数据 schema 版本。字段结构变化时递增，并在 metadata_store 中做迁移。
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # 未完成文件的临时后缀。下载完成后用 os.replace 原子改名。
 PART_SUFFIX = ".dxpart"

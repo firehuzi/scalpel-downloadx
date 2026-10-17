@@ -81,10 +81,10 @@ class Config:
     ramp_gain_threshold: float = 1.15
 
     # ---- HLS ----
-    #: 合并成 mp4（需要 ffmpeg）；关掉则输出原始 .ts 拼接
-    hls_remux: bool = True
-    #: 限制选中的最高分辨率（0 = 选最高档）
-    hls_max_height: int = 0
+    #: 合并/重封装（需要 ffmpeg）；关掉则 HLS 输出原始 .ts 拼接
+    stream_remux: bool = True
+    #: 限制选中的最高分辨率（0 = 选最高档），HLS / DASH 通用
+    stream_max_height: int = 0
 
     # ---- 网络 ----
     user_agent: str = f"{APP_NAME}/0.1.0 (+local)"
