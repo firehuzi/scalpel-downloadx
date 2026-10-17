@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "DownloadX · 刃研社",
+  "version": "0.1.0",
+  "description": "把链接或当前页面交给本机 DownloadX 下载（多连接续传 + SHA-256 校验）",
+  "permissions": ["contextMenus", "storage"],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "DownloadX"
+  }
+}

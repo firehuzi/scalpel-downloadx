@@ -92,6 +92,9 @@ class Config:
     # ---- 本地服务 ----
     host: str = "127.0.0.1"
     port: int = 8720
+    #: 访问令牌。留空 = 不鉴权（仅回环地址可访问）；设置后 /api/* 与 /agent/* 必须带
+    #: Authorization: Bearer <token>，同时才会放开跨域（浏览器扩展需要）。
+    api_token: str = ""
     log_level: str = "INFO"
 
     # ------------------------------------------------------------------

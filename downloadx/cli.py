@@ -15,6 +15,7 @@ import argparse
 import asyncio
 import json
 import os
+import secrets
 import sys
 import time
 from pathlib import Path
@@ -657,6 +658,23 @@ async def cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+async def cmd_token(args: argparse.Namespace) -> int:
+    """查看 / 轮换 / 关闭本地 API 的访问令牌。"""
+    config = build_config(args)
+    if args.clear:
+        config.api_token = ""
+        path = config.save()
+        print(f"已关闭访问令牌（{path}）。API 恢复为仅凭回环地址保护。")
+        return 0
+    if args.rotate or not config.api_token:
+        config.api_token = secrets.token_urlsafe(24)
+        path = config.save()
+        print(f"已生成新令牌并写入 {path}")
+        print("提示：正在运行的服务需重启后生效；面板第一次请求时会提示输入。")
+    print(config.api_token)
+    return 0
+
+
 # ----------------------------------------------------------------------
 # 参数解析
 # ----------------------------------------------------------------------
@@ -791,6 +809,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_tools = new_parser("tools", help="列出可被 Agent 调用的工具")
     p_tools.set_defaults(func=cmd_tools)
+
+    p_token = new_parser("token", help="查看 / 轮换本地 API 访问令牌")
+    p_token.add_argument("--rotate", action="store_true", help="生成新令牌（旧的立即失效）")
+    p_token.add_argument("--clear", action="store_true", help="关闭令牌鉴权")
+    p_token.set_defaults(func=cmd_token)
 
     return parser
 

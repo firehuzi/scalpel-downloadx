@@ -217,3 +217,25 @@ def test_cli_help_and_version(capsys):
         main(["--version"])
     assert info.value.code == 0
     assert "DownloadX" in capsys.readouterr().out
+
+
+def test_cli_token_lifecycle(capsys, cli_args):
+    common, state, _, _ = cli_args
+    assert main([*common, "token"]) == 0
+    first = capsys.readouterr().out.strip().splitlines()[-1]
+    assert len(first) >= 20, first  # 自动生成
+
+    assert main([*common, "token", "--rotate"]) == 0
+    second = capsys.readouterr().out.strip().splitlines()[-1]
+    assert second != first
+
+    # 写进了配置
+    import json
+
+    saved = json.loads((state / "config.json").read_text(encoding="utf-8"))
+    assert saved["api_token"] == second
+
+    assert main([*common, "token", "--clear"]) == 0
+    assert "已关闭" in capsys.readouterr().out
+    saved = json.loads((state / "config.json").read_text(encoding="utf-8"))
+    assert saved["api_token"] == ""

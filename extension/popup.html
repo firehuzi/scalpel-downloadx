@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<style>
+  body { width: 320px; margin: 0; padding: 12px; background: #0e1117; color: #e6edf3;
+         font: 13px/1.5 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; }
+  h1 { font-size: 14px; margin: 0 0 8px; }
+  h1 span { color: #3fb950; }
+  #stats { color: #8b949e; font-size: 12px; margin-bottom: 10px; min-height: 18px; }
+  input, button { font: inherit; color: #e6edf3; background: #1c2330;
+                  border: 1px solid #262d3a; border-radius: 6px; padding: 6px 8px; }
+  input { width: 100%; box-sizing: border-box; margin-bottom: 6px; }
+  button { cursor: pointer; background: #202834; }
+  button.primary { background: #3fb950; color: #04120a; border-color: #3fb950; font-weight: 600; width: 100%; }
+  details { margin-top: 10px; border-top: 1px solid #262d3a; padding-top: 8px; }
+  summary { cursor: pointer; color: #8b949e; font-size: 12px; }
+  label { display: block; font-size: 11px; color: #8b949e; margin: 6px 0 2px; }
+  #msg { margin-top: 8px; font-size: 12px; min-height: 16px; word-break: break-all; }
+  .ok { color: #3fb950; } .err { color: #f85149; }
+</style>
+</head>
+<body>
+  <h1>刃研社 <span>DownloadX</span></h1>
+  <div id="stats">正在读取状态…</div>
+  <input id="url" placeholder="粘贴链接，回车即下载" />
+  <button id="add" class="primary">加入下载</button>
+  <div id="msg"></div>
+  <details>
+    <summary>设置（服务地址 / 访问令牌）</summary>
+    <label>服务地址</label>
+    <input id="base" placeholder="http://127.0.0.1:8720" />
+    <label>访问令牌（downloadx token 的输出）</label>
+    <input id="token" placeholder="留空 = 未启用鉴权" />
+    <button id="save">保存</button>
+  </details>
+  <script src="popup.js"></script>
+</body>
+</html>

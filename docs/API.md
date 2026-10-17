@@ -185,6 +185,29 @@ Content-Type: application/json
 
 ---
 
+## 4.5 访问令牌
+
+默认**不鉴权** —— 服务只监听 `127.0.0.1`，这是本地工具的常态。
+
+设置 `api_token` 之后（`downloadx token` 或 `downloadx token --rotate`）：
+
+| 规则 | 说明 |
+| --- | --- |
+| 保护范围 | 所有 `/api/*` 与 `/agent/*` |
+| 免鉴权 | `/api/health`（探活用） |
+| 携带方式 | `Authorization: Bearer <token>`，或 `X-DownloadX-Token: <token>` |
+| WebSocket | `/api/ws?token=<token>`（浏览器无法给 WS 设请求头） |
+| CORS | **只有启用令牌后才放开**，避免任意网页 drive-by 调用本地 API |
+| 生效 | 改完令牌需重启服务 |
+
+```powershell
+downloadx token           # 查看（没有就生成一个）
+downloadx token --rotate  # 轮换，旧的立即失效
+downloadx token --clear   # 关闭鉴权
+```
+
+---
+
 ## 5. 命令行等价物
 
 | REST | CLI |

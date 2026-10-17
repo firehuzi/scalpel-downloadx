@@ -9,12 +9,14 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import secrets
 import time
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, FastAPI, HTTPException, Query, Request, WebSocket
 from fastapi.responses import JSONResponse
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -244,6 +246,13 @@ def build_router(manager: DownloadManager) -> APIRouter:
     # ---- WebSocket 事件流 ---------------------------------------------
     @router.websocket("/ws")
     async def ws_events(websocket: WebSocket) -> None:
+        # WebSocket 升级不经过 HTTP 中间件，这里必须自己校验令牌
+        token = manager.config.api_token
+        if token:
+            supplied = websocket.query_params.get("token", "")
+            if not secrets.compare_digest(supplied, token):
+                await websocket.close(code=1008)  # policy violation
+                return
         await websocket.accept()
         queue = manager.bus.subscribe()
         try:
@@ -299,6 +308,56 @@ def create_app(manager: DownloadManager, *, mount_ui: bool = True) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.manager = manager
+
+    @app.middleware("http")
+    async def local_auth(request: Request, call_next):
+        """本地 API 的访问控制。
+
+        默认（``api_token`` 为空）不鉴权 —— 服务只监听回环地址，这是本地工具的常态。
+        一旦设置了令牌：``/api/*`` 与 ``/agent/*`` 必须带令牌，并放开跨域，
+        这样浏览器扩展（chrome-extension:// 来源）才能调用。
+        """
+        token = manager.config.api_token
+        path = request.url.path
+        is_api = path.startswith("/api/") or path.startswith("/agent/")
+        is_preflight = request.method == "OPTIONS"
+
+        if not token:
+            return await call_next(request)
+        if not is_api:
+            return await call_next(request)
+        if is_preflight:
+            # 预检请求不带凭据，必须直接放行，否则浏览器扩展发不出真实请求
+            return _apply_cors(Response(status_code=204))
+        if path == "/api/health":
+            return await call_next(request)
+
+        supplied = request.headers.get("x-downloadx-token", "")
+        auth = request.headers.get("authorization", "")
+        if auth.lower().startswith("bearer "):
+            supplied = auth[7:].strip()
+        if not supplied:
+            supplied = request.query_params.get("token", "")
+        if not secrets.compare_digest(supplied, token):
+            response = JSONResponse(
+                {"detail": "unauthorized：请求缺少或携带了错误的访问令牌（Authorization: Bearer …）"},
+                status_code=401,
+            )
+            _apply_cors(response)
+            return response
+
+        response = await call_next(request)
+        return _apply_cors(response)
+
+    def _apply_cors(response: Response) -> Response:
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = (
+            "Content-Type, Authorization, X-DownloadX-Token"
+        )
+        response.headers["Access-Control-Max-Age"] = "600"
+        return response
+
     app.include_router(build_router(manager))
 
     from .agent_api import build_agent_router

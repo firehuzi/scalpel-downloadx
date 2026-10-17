@@ -178,11 +178,27 @@ function toast(msg, isErr) {
   setTimeout(() => el.remove(), isErr ? 6000 : 3000);
 }
 
+// 访问令牌：服务端设置 api_token 后，面板需要带令牌（同一台机器、本地存储）
+let TOKEN = localStorage.getItem("downloadx.token") || "";
+
+function authHeaders() {
+  return TOKEN ? { "Authorization": "Bearer " + TOKEN } : {};
+}
+
 async function api(path, opts = {}) {
-  const res = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
+  const send = () => fetch(path, {
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     ...opts,
   });
+  let res = await send();
+  if (res.status === 401) {
+    const entered = prompt("该服务已启用访问令牌，请输入（可用 downloadx token 查看）：");
+    if (entered) {
+      TOKEN = entered.trim();
+      localStorage.setItem("downloadx.token", TOKEN);
+      res = await send();
+    }
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.detail || res.statusText);
   return data;
@@ -333,7 +349,9 @@ function renderHistory(records) {
 let ws = null;
 function connectWS() {
   const proto = location.protocol === "https:" ? "wss" : "ws";
-  ws = new WebSocket(`${proto}://${location.host}/api/ws`);
+  // WebSocket 不能自定义请求头，令牌走查询参数（只在本机回环上使用）
+  const q = TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : "";
+  ws = new WebSocket(`${proto}://${location.host}/api/ws${q}`);
   ws.onopen = () => { $("#ws-dot").className = "dot on"; $("#ws-text").textContent = "实时连接"; };
   ws.onclose = () => {
     $("#ws-dot").className = "dot off";

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from downloadx import DownloadManager
 from downloadx.api.local_api import create_app
@@ -277,3 +278,81 @@ def test_ui_is_served(client):
     resp = client.get("/")
     assert resp.status_code == 200
     assert "DownloadX" in resp.text
+
+
+# ----------------------------------------------------------------------
+# 访问令牌（Phase 1）
+# ----------------------------------------------------------------------
+TOKEN = "test-token-0123456789"
+
+
+@pytest.fixture()
+def secured_client(config):
+    config.api_token = TOKEN
+    manager = DownloadManager(config)
+    with TestClient(create_app(manager)) as test_client:
+        yield test_client
+
+
+def test_open_by_default(client):
+    """没设令牌时不鉴权（只靠回环地址保护）。"""
+    assert client.get("/api/tasks").status_code == 200
+
+
+def test_token_is_required_when_configured(secured_client):
+    assert secured_client.get("/api/tasks").status_code == 401
+    assert secured_client.get(
+        "/api/tasks", headers={"Authorization": "Bearer wrong"}
+    ).status_code == 401
+    ok = secured_client.get("/api/tasks", headers={"Authorization": f"Bearer {TOKEN}"})
+    assert ok.status_code == 200
+    # 备用头（给不方便设 Authorization 的客户端）
+    assert secured_client.get(
+        "/api/tasks", headers={"X-DownloadX-Token": TOKEN}
+    ).status_code == 200
+    # 健康检查永远放行，便于探活
+    assert secured_client.get("/api/health").status_code == 200
+
+
+def test_preflight_allowed_and_cors_headers(secured_client):
+    resp = secured_client.options(
+        "/api/tasks",
+        headers={
+            "Origin": "chrome-extension://abcdefghijklmnop",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        },
+    )
+    assert resp.status_code == 204
+    assert resp.headers["access-control-allow-origin"] == "*"
+    assert "authorization" in resp.headers["access-control-allow-headers"].lower()
+
+
+def test_agent_api_is_guarded_too(secured_client):
+    assert secured_client.post("/agent/tool", json={"name": "get_stats", "arguments": {}}).status_code == 401
+    ok = secured_client.post(
+        "/agent/tool",
+        json={"name": "get_stats", "arguments": {}},
+        headers={"Authorization": f"Bearer {TOKEN}"},
+    )
+    assert ok.status_code == 200
+
+
+def test_websocket_requires_token(secured_client):
+    with pytest.raises(WebSocketDisconnect):
+        with secured_client.websocket_connect("/api/ws"):
+            pass
+    with secured_client.websocket_connect(f"/api/ws?token={TOKEN}") as ws:
+        assert ws.receive_json()["type"] == "snapshot"
+
+
+def test_extension_manifest_is_valid_mv3():
+    import json
+
+    root = Path(__file__).resolve().parents[1]
+    manifest = json.loads((root / "extension" / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["manifest_version"] == 3
+    assert manifest["background"]["service_worker"] == "background.js"
+    assert any("127.0.0.1" in host for host in manifest["host_permissions"])
+    for name in ("background.js", "popup.html", "popup.js"):
+        assert (root / "extension" / name).is_file(), name
