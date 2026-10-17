@@ -104,6 +104,14 @@
 **可行性已验证**：`libtorrent 2.1.1` 有 `cp312-win_amd64` wheel，`pip download` 实测可拉取。
 所以这是一个"大阶段"，不是研究项目。
 
+**spike 已完成（2026-10-17）→ 见 [BT_SPIKE.md](BT_SPIKE.md)**：8 MB 种子、本机做种+下载、
+中途暂停后换新 session 续传。结论：
+
+* 能装能跑（`pip install --target`，全局 site-packages 会被杀软拦）。
+* 同 session `pause()/resume()` 无损；**跨 session 只恢复 hash 已验证的分片**（实测 261 块 → 129 块）。
+* **必须 `save_resume_data(flush_disk_cache)`**：不加会产出损坏文件（实测校验不通过）。
+* 因此集成形态应是"独立子进程（GPL 边界）+ 不承诺字节级续传"。
+
 设计要点：
 
 - 新 `mode = "torrent"`，由 `TorrentWorker` 驱动（与 `DownloadWorker` 平级）。

@@ -161,6 +161,7 @@ DownloadX/
 - [docs/AGENT_API.md](docs/AGENT_API.md) —— 15 个工具、自然语言层、如何用 LLM 驱动
 - [docs/TESTING.md](docs/TESTING.md) —— 怎么跑测试、测试服务覆盖了哪些恶劣情况
 - [docs/PERFORMANCE.md](docs/PERFORMANCE.md) —— 实测速度：回环上限、外网、国内镜像、多连接收益
+- [docs/BT_SPIKE.md](docs/BT_SPIKE.md) —— P3 可行性 spike：libtorrent 实测结论与集成建议
 
 ---
 
