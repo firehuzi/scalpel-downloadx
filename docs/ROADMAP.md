@@ -119,6 +119,13 @@
 * **必须 `save_resume_data(flush_disk_cache)`**：不加会产出损坏文件（实测校验不通过）。
 * 因此集成形态应是"独立子进程（GPL 边界）+ 不承诺字节级续传"。
 
+**立项（2026-10-17）→ 见 [P3.md](P3.md)**：范围、不做的事、四个里程碑（P3-1 子进程与跨进程
+暂停恢复 → P3-2 接入 DownloadManager → P3-3 队列/限速/做种 → P3-4 打包）、硬性约束与风险。
+
+**P3-1 已完成**：`downloadx/bt/`（子进程 worker + JSON-lines 协议 + 异步客户端），
+离线测试覆盖"本机做种 → 子进程下载到 30% → 暂停并落 resume → 换新进程恢复 → 文件逐字节一致"。
+依赖以可选组声明：`pip install .[bt]`。
+
 设计要点：
 
 - 新 `mode = "torrent"`，由 `TorrentWorker` 驱动（与 `DownloadWorker` 平级）。
