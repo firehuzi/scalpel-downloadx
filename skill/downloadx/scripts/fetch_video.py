@@ -197,6 +197,99 @@ def delegate_to_engine(url: str, args: argparse.Namespace) -> int:
 # ----------------------------------------------------------------------
 # 播放列表：逐条执行 + 状态文件（重跑即续跑）
 # ----------------------------------------------------------------------
+# ----------------------------------------------------------------------
+# 站点档案：按域名记住 cookie 文件 / 代理 / 额外参数
+# ----------------------------------------------------------------------
+def sites_path() -> Path:
+    """站点档案与引擎共用同一个状态目录（换机器时会一起迁移）。"""
+    override = os.environ.get("DOWNLOADX_STATE_DIR")
+    if override:
+        base = Path(override).expanduser()
+    else:
+        local = os.environ.get("LOCALAPPDATA")
+        base = Path(local) / "DownloadX" if local else Path.home() / ".local" / "share" / "DownloadX"
+    return base / "sites.json"
+
+
+def load_sites() -> dict[str, dict]:
+    path = sites_path()
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError:
+        return {}
+    return {str(k).lower(): v for k, v in (data or {}).items() if isinstance(v, dict)}
+
+
+def save_sites(sites: dict[str, dict]) -> Path:
+    path = sites_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(sites, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, path)
+    return path
+
+
+def match_site(host: str, sites: dict[str, dict]) -> tuple[str, dict] | None:
+    """域名后缀匹配，取最长的那条（api.bilibili.com 优先于 bilibili.com）。"""
+    host = (host or "").lower()
+    best: tuple[str, dict] | None = None
+    for pattern, profile in sites.items():
+        if host == pattern or host.endswith("." + pattern):
+            if best is None or len(pattern) > len(best[0]):
+                best = (pattern, profile)
+    return best
+
+
+def site_profile(host: str) -> tuple[str, dict] | None:
+    return match_site(host, load_sites())
+
+
+def site_command(args) -> int | None:
+    """处理 --site-list / --site-set / --site-remove；不是管理命令时返回 None。"""
+    if getattr(args, "site_list", False):
+        sites = load_sites()
+        if not sites:
+            print("（还没有站点档案）")
+            return 0
+        for pattern in sorted(sites):
+            profile = sites[pattern]
+            print(f"{pattern:<28} cookies={profile.get('cookies') or '-'}  "
+                  f"proxy={profile.get('proxy') or '-'}  args={profile.get('args') or '-'}")
+        print(f"\n档案文件：{sites_path()}")
+        return 0
+
+    if getattr(args, "site_remove", None):
+        pattern = args.site_remove.strip().lower()
+        sites = load_sites()
+        if sites.pop(pattern, None) is None:
+            print(f"没有这个站点：{pattern}", file=sys.stderr)
+            return 1
+        save_sites(sites)
+        print(f"已删除站点档案：{pattern}")
+        return 0
+
+    if getattr(args, "site_set", None):
+        pattern = args.site_set.strip().lower()
+        sites = load_sites()
+        profile = dict(sites.get(pattern) or {})
+        if args.cookies:
+            profile["cookies"] = str(Path(args.cookies).expanduser())
+        if args.proxy:
+            profile["proxy"] = args.proxy
+        if args.site_args:
+            profile["args"] = args.site_args.split()
+        if not profile:
+            print("至少要给 --cookies / --proxy / --site-args 之一", file=sys.stderr)
+            return 1
+        sites[pattern] = profile
+        path = save_sites(sites)
+        print(f"已保存站点档案：{pattern} -> {profile}\n档案文件：{path}")
+        return 0
+    return None
+
+
 def enumerate_playlist(python: str, url: str, extra: list[str], passthrough: list[str]) -> list[dict]:
     """用 yt-dlp 的 flat 模式只列条目，不下载。"""
     command = [python, "-m", "yt_dlp", "--flat-playlist", "-J", "--no-warnings",
@@ -299,7 +392,7 @@ def run_playlist(args, python: str, extra: list[str], passthrough: list[str],
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="按站点分流下载视频/音频/直链")
-    parser.add_argument("url")
+    parser.add_argument("url", nargs="?", help="视频 / 播放列表 / 直链 URL（站点档案命令可省略）")
     parser.add_argument("--dir", default=None, help="保存目录，默认用 DownloadX 的下载目录")
     parser.add_argument("--name", default=None, help="另存文件名（仅直链下载有效）")
     parser.add_argument("--quality", default="best",
@@ -312,12 +405,26 @@ def main() -> int:
     parser.add_argument("--cookies", default=None, help="cookies.txt 路径（B 站 1080P+ 需要）")
     parser.add_argument("--cookies-from-browser", default=None,
                         help="从浏览器读 cookie（本机 Edge/Chrome 会因 app-bound 加密失败）")
+    parser.add_argument("--proxy", default=None,
+                        help="代理，如 http://127.0.0.1:7890（覆盖站点档案里的设置）")
+    parser.add_argument("--site-list", action="store_true", help="列出已保存的站点档案")
+    parser.add_argument("--site-set", metavar="HOST",
+                        help="为某个域名保存档案，如 bilibili.com")
+    parser.add_argument("--site-remove", metavar="HOST", help="删除某个域名的档案")
+    parser.add_argument("--site-args", default=None,
+                        help="给该站点追加的 yt-dlp 参数（空格分隔），配合 --site-set 使用")
     parser.add_argument("--json", action="store_true", help="输出机器可读结果")
     args, passthrough = parser.parse_known_args()
     if passthrough and passthrough[0] == "--":
         passthrough = passthrough[1:]
     elif passthrough:
         parser.error(f"无法识别的参数：{passthrough}（额外参数请写在 `--` 之后）")
+
+    handled = site_command(args)
+    if handled is not None:
+        return handled
+    if not args.url:
+        parser.error("缺少 URL（--site-list / --site-set / --site-remove 除外）")
 
     if args.dir:
         out_dir = Path(args.dir).expanduser()
@@ -345,6 +452,15 @@ def main() -> int:
         print("! 找不到 ffmpeg：高画质通常是音视频分离的，缺它无法合并", file=sys.stderr)
 
     host = host_of(args.url)
+    matched = site_profile(host)
+    proxy = args.proxy or (matched[1].get("proxy") if matched else None)
+    if matched:
+        pattern, profile = matched
+        cookie_note = f"，cookies={Path(profile['cookies']).name}" if profile.get("cookies") else ""
+        print(f"→ 命中站点档案 {pattern}{cookie_note}")
+        if not args.cookies and profile.get("cookies"):
+            args.cookies = profile["cookies"]
+
     extra: list[str] = []
     if "bilibili" in host or "b23.tv" in host:
         extra += bilibili_args(args.cookies)
@@ -352,6 +468,10 @@ def main() -> int:
         extra += ["--cookies", args.cookies]
     if args.cookies_from_browser:
         extra += ["--cookies-from-browser", args.cookies_from_browser]
+    if proxy:
+        extra += ["--proxy", proxy]
+    if matched and matched[1].get("args"):
+        extra += [str(item) for item in matched[1]["args"]]
     if not args.playlist:
         extra.append("--no-playlist")
 

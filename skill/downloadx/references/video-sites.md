@@ -40,7 +40,16 @@ python <skill-dir>/scripts/fetch_video.py <url> [--quality 1080] [--audio] [--in
 
 `--cookies-from-browser edge|chrome` 在**这台机器上不可用**：报
 `Could not copy Chrome cookie database`（Chrome/Edge 的 app-bound 加密，yt-dlp issue #7271）。
-要用高清晰度只能导出 `cookies.txt` 再 `--cookies <文件>`。
+要用高清晰度只能导出 `cookies.txt`，然后**一次性记进站点档案**：
+
+```bash
+python fetch_video.py --site-set bilibili.com --cookies C:/path/cookies.txt
+python fetch_video.py <B站链接>          # 之后自动带上 cookie
+```
+
+站点档案按域名后缀匹配（`api.bilibili.com` 优先于 `bilibili.com`），
+存在引擎状态目录的 `sites.json` 里；`--site-list` 查看、`--site-remove` 删除，
+还可以用 `--site-args "..."` 给某个站点追加 yt-dlp 参数、`--proxy` 指定代理。
 
 想要 4K/8K/杜比/弹幕/字幕，专业工具是 **BBDown**（未安装，见下方"可选升级"）。
 

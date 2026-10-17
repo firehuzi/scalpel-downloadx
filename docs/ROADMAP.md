@@ -65,12 +65,20 @@
   **先 flat 枚举条目 → 逐条执行 → 状态写进 `.downloadx-playlist.json`**。
   重跑同一条命令只补失败/新增条目；`--redo` 才全部重下；`--playlist --inspect` 只列条目。
 
+**已完成：站点档案（cookie / 代理）**
+
+* `fetch_video.py --site-set bilibili.com --cookies <file> --proxy <url> --site-args "…"`
+  按域名保存档案（后缀匹配，最长优先），之后跑该站点的链接自动带上。
+* 档案存在引擎状态目录的 `sites.json`，`--site-list` / `--site-remove` 管理；
+  命令行 `--proxy` 覆盖档案里的设置。
+* 解决的真实问题：B 站 1080P+ 必须登录（而 `--cookies-from-browser` 在这台机器上不可用），
+  每次手打参数容易漏；X 和部分站点需要代理。
+
 缺口（按价值排序）：
 
 1. **字幕 / 弹幕 / 章节**：B 站弹幕、YouTube 字幕、章节切分。
-2. **Cookie 与代理管理**：现在靠 `--cookies` 手动传；应支持按站点保存 cookie 文件与代理。
-3. **站点适配回归**：把"这个站点当前能不能下、最高什么画质"做成可测的检查。
-4. **DASH 的补充**：多 Period、`$Bandwidth$` 模板、DRM 之外的加密方案。
+2. **站点适配回归**：把"这个站点当前能不能下、最高什么画质"做成可测的检查。
+3. **DASH 的补充**：多 Period、`$Bandwidth$` 模板、DRM 之外的加密方案。
 
 **验收**：三个站点（YouTube / B 站 / X）各跑通 1080P（或站点上限）+ 失败自动重试 + 结果哈希记录。
 

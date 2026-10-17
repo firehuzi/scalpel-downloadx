@@ -144,7 +144,7 @@ DownloadX/
 │   ├── cli.py       # 命令行（前台下载 / 连服务两种模式）
 │   └── config.py    # 配置（默认值 -> config.json -> 环境变量）
 ├── extension/       # 浏览器扩展（MV3）：右键链接直接交给本机引擎
-├── tests/           # 123 个测试，含可复现的本地 HTTP 服务
+├── tests/           # 127 个测试，含可复现的本地 HTTP 服务
 ├── skill/           # 配套 Codex skill（薄封装，见下）
 ├── docs/            # 架构 / API / Agent API / 测试说明
 └── scripts/         # 联调冒烟 + 压测脚本
@@ -180,6 +180,9 @@ skill/downloadx/
 视频站点由 `fetch_video.py` 分流：YouTube、Bilibili 等交给 yt-dlp（B 站会自动补上躲开
 HTTP 412 的四个请求头），X/Twitter 交给已有的 `download-x-video` skill，直链媒体文件交回
 引擎（续传 + 队列 + 校验）。工具缺失时只报告、不自动安装。
+
+需要登录或走代理的站点用**站点档案**记住一次即可：
+`fetch_video.py --site-set bilibili.com --cookies <file>`，之后同域名的链接自动带上。
 
 ---
 

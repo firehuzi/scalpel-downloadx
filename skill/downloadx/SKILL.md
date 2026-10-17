@@ -160,6 +160,10 @@ Four things that otherwise cost an hour each:
 - **Without login cookies Bilibili caps at 480P**; YouTube 4K works without cookies.
   `--cookies-from-browser` does not work on this Windows box (app-bound encryption, yt-dlp
   issue #7271) — export `cookies.txt` and pass `--cookies`.
+- **Per-site profiles save you from repeating flags.** `--site-set bilibili.com --cookies <file>
+  --proxy <url> --site-args "--write-subs"` stores a profile per domain (suffix match, longest
+  wins) in the engine state dir's `sites.json`; later runs apply it automatically. Manage with
+  `--site-list` / `--site-remove`; a command-line `--proxy` overrides the stored one.
 - **ffmpeg is mandatory above 720P** (separate video/audio streams). It is present here; the
   wrapper warns instead of failing silently when it is missing.
 
