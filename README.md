@@ -144,7 +144,7 @@ DownloadX/
 │   ├── cli.py       # 命令行（前台下载 / 连服务两种模式）
 │   └── config.py    # 配置（默认值 -> config.json -> 环境变量）
 ├── extension/       # 浏览器扩展（MV3）：右键链接直接交给本机引擎
-├── tests/           # 127 个测试，含可复现的本地 HTTP 服务
+├── tests/           # 129 个测试，含可复现的本地 HTTP 服务
 ├── skill/           # 配套 Codex skill（薄封装，见下）
 ├── docs/            # 架构 / API / Agent API / 测试说明
 └── scripts/         # 联调冒烟 + 压测脚本
@@ -183,6 +183,9 @@ HTTP 412 的四个请求头），X/Twitter 交给已有的 `download-x-video` sk
 
 需要登录或走代理的站点用**站点档案**记住一次即可：
 `fetch_video.py --site-set bilibili.com --cookies <file>`，之后同域名的链接自动带上。
+
+还能定期体检：`check_sites.py` 几秒钟探一遍 B 站 / YouTube / X / HLS / DASH，
+报告"现在还能不能下、最高什么画质"，失败时退出码 1（可接定时任务）。
 
 ---
 

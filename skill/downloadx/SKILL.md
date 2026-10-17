@@ -169,3 +169,8 @@ Four things that otherwise cost an hour each:
 
 Never install tools silently. If yt-dlp, ffmpeg, aria2c, or BBDown is missing, report it and let
 the user decide.
+
+**Is a site still working?** `python <skill-dir>/scripts/check_sites.py` probes YouTube, Bilibili,
+X, HLS and DASH in a few seconds (simulate only, no downloads) and prints availability plus the
+highest quality each one currently offers. Exit code is 1 when something broke, so it can be
+scheduled. Pass `--x-url <tweet>` to test X for real; otherwise X is reported as skipped.
