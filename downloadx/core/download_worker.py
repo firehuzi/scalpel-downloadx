@@ -13,6 +13,8 @@ from __future__ import annotations
 import asyncio
 import hmac
 import logging
+import os
+import shutil
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -20,6 +22,7 @@ from pathlib import Path
 import aiohttp
 
 from ..config import Config
+from ..network import hls
 from ..network.http_client import HttpClient, HttpError
 from ..network.retry import HttpStatusError, RetryExhausted, RetryPolicy, is_retryable, retry_async
 from ..storage.checksum import sha256_file
@@ -166,12 +169,15 @@ class DownloadWorker:
         self._last_emit = 0.0
         try:
             await self._prepare()
-            await self._open_writer()
 
-            if task.mode == "streaming":
-                await self._run_streaming()
+            if task.mode == "hls":
+                await self._run_hls()
             else:
-                await self._run_segmented()
+                await self._open_writer()
+                if task.mode == "streaming":
+                    await self._run_streaming()
+                else:
+                    await self._run_segmented()
 
             await self._finalize()
             return task.status
@@ -222,6 +228,9 @@ class DownloadWorker:
     # ------------------------------------------------------------------
     async def _prepare(self) -> None:
         task = self.task
+        if hls.looks_like_hls(task.url, task.content_type):
+            await self._prepare_hls()
+            return
         known_plan = bool(task.segments) and task.mode != "streaming"
 
         if not known_plan:
@@ -344,6 +353,201 @@ class DownloadWorker:
             Path(self.task.part_path).unlink(missing_ok=True)
         except OSError:
             pass
+
+    # ------------------------------------------------------------------
+    # HLS（.m3u8）：分片下载 + 断点续传 + 合并
+    # ------------------------------------------------------------------
+    async def _prepare_hls(self) -> None:
+        task = self.task
+        text, final_url = await self._fetch_playlist(task.url)
+        if hls.is_master(text):
+            variants = hls.parse_master(text, final_url)
+            variant = hls.pick_variant(variants, self.config.hls_max_height or None)
+            text, final_url = await self._fetch_playlist(variant.uri)
+            self._emit("hls_variant", variant=variant.label, uri=variant.uri)
+
+        playlist = hls.parse_media(text, final_url)
+        if playlist.is_live:
+            raise hls.HlsError("直播流（没有 EXT-X-ENDLIST）不在支持范围")
+
+        task.mode = "hls"
+        task.final_url = final_url
+        task.resumable = True
+        task.hls_playlist = [s.uri for s in playlist.segments]
+        task.hls_init = playlist.init_uri or ""
+        task.hls_total = len(playlist.segments)
+        task.hls_done = [i for i in task.hls_done if 0 <= i < task.hls_total]
+        task.total_size = None
+        minutes = f"，约 {playlist.duration / 60:.1f} 分钟" if playlist.duration else ""
+        task.plan_reason = f"HLS：{task.hls_total} 个分片{minutes}"
+
+        # 输出名：.m3u8 -> .mp4（有 ffmpeg）或 .ts
+        if not task.filename_locked:
+            use_mp4 = bool(self.config.hls_remux and shutil.which("ffmpeg"))
+            stem = Path(task.filename).stem or "video"
+            new_name = stem + (".mp4" if use_mp4 else ".ts")
+            if Path(task.save_path).name != new_name:
+                task.filename = new_name
+                task.save_path = str(Path(task.save_path).parent / new_name)
+
+        self._emit(
+            "task_probed",
+            mode="hls",
+            segments=task.hls_total,
+            final_url=final_url,
+            resumable=True,
+            plan_reason=task.plan_reason,
+        )
+
+    async def _fetch_playlist(self, url: str) -> tuple[str, str]:
+        async def call() -> tuple[str, str]:
+            self.control.check()
+            async with self.http.stream(url, headers=self.task.headers) as resp:
+                if resp.status >= 400:
+                    raise HttpStatusError(resp.status, url, str(resp.reason or ""))
+                data = await resp.content.read()
+            if not data:
+                raise HttpError("播放列表为空")
+            return data.decode("utf-8", "replace"), str(resp.url)
+
+        try:
+            return await retry_async(call, self.retry_policy)
+        except RetryExhausted as exc:
+            raise exc.last_error from exc
+
+    async def _run_hls(self) -> None:
+        task = self.task
+        total = task.hls_total
+        seg_dir = Path(task.part_path + ".segs")
+        seg_dir.mkdir(parents=True, exist_ok=True)
+
+        done = {i for i in task.hls_done if 0 <= i < total}
+        # 磁盘上已经存在的分片直接算完成（元数据落后时以实物为准）
+        for i in range(total):
+            if (seg_dir / f"{i:05d}.seg").exists():
+                done.add(i)
+        task.hls_done = sorted(done)
+
+        limit = max(1, min(int(task.connections), 8))
+        self._emit(
+            "task_started",
+            mode="hls",
+            connections=limit,
+            total_size=None,
+            segments=total,
+            done=len(done),
+        )
+
+        if task.hls_init:
+            init_path = seg_dir / "init.seg"
+            if not init_path.exists():
+                data = await self._fetch_hls_bytes(task.hls_init)
+                await asyncio.to_thread(init_path.write_bytes, data)
+                self._on_bytes(len(data))
+
+        pending = [i for i in range(total) if i not in done]
+        queue: asyncio.Queue[int] = asyncio.Queue()
+        for i in pending:
+            queue.put_nowait(i)
+
+        async def pool_worker() -> None:
+            while True:
+                try:
+                    index = queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    return
+                self.control.check()
+                await self._fetch_hls_segment(index, seg_dir)
+                done.add(index)
+                task.hls_done = sorted(done)
+                self._touch()
+                self._emit(
+                    "hls_segment_done",
+                    index=index,
+                    done=len(done),
+                    total=total,
+                    percent=task.percent,
+                )
+
+        workers = [asyncio.create_task(pool_worker()) for _ in range(min(limit, max(1, len(pending))))]
+        try:
+            await asyncio.gather(*workers)
+        except BaseException:
+            for task_obj in workers:
+                task_obj.cancel()
+            await asyncio.gather(*workers, return_exceptions=True)
+            raise
+
+        await self._assemble_hls(seg_dir, total)
+
+    async def _fetch_hls_bytes(self, url: str) -> bytes:
+        """单个分片/初始化段：带重试地整段读取（分片通常几 MB，不适合 Range 续传）。"""
+        attempts = 0
+        while True:
+            attempts += 1
+            try:
+                async with self.http.stream(url, headers=self.task.headers) as resp:
+                    if resp.status >= 400:
+                        raise HttpStatusError(resp.status, url, str(resp.reason or ""))
+                    data = await resp.content.read()
+                if not data:
+                    raise HttpError("分片为空")
+                return data
+            except (PauseRequested, CancelRequested, asyncio.CancelledError):
+                raise
+            except Exception as exc:
+                if attempts >= self.retry_policy.max_attempts or not is_retryable(exc):
+                    raise
+                await asyncio.sleep(self.retry_policy.delay_for(attempts))
+
+    async def _fetch_hls_segment(self, index: int, seg_dir: Path) -> None:
+        task = self.task
+        url = task.hls_playlist[index]
+        data = await self._fetch_hls_bytes(url)
+        if self.bandwidth is not None:
+            await self.bandwidth.acquire(len(data), task.id)
+        target = seg_dir / f"{index:05d}.seg"
+        await asyncio.to_thread(target.write_bytes, data)
+        self._on_bytes(len(data))
+
+    async def _assemble_hls(self, seg_dir: Path, total: int) -> None:
+        task = self.task
+        target = Path(task.part_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        assembled = target.with_suffix(target.suffix + ".assembled")
+
+        def concat() -> None:
+            with assembled.open("wb") as out:
+                init = seg_dir / "init.seg"
+                if init.exists():
+                    with init.open("rb") as src:
+                        shutil.copyfileobj(src, out, 1024 * 1024)
+                for i in range(total):
+                    piece = seg_dir / f"{i:05d}.seg"
+                    with piece.open("rb") as src:
+                        shutil.copyfileobj(src, out, 1024 * 1024)
+
+        await asyncio.to_thread(concat)
+
+        if target.suffix.lower() == ".mp4" and self.config.hls_remux:
+            ffmpeg = shutil.which("ffmpeg")
+            if ffmpeg is None:
+                raise HttpError("合并成 mp4 需要 ffmpeg；装 ffmpeg 或把输出名改成 .ts")
+            proc = await asyncio.create_subprocess_exec(
+                ffmpeg, "-y", "-loglevel", "error", "-i", str(assembled),
+                "-c", "copy", "-movflags", "+faststart", str(target),
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            code = await proc.wait()
+            if code != 0 or not target.exists():
+                raise HttpError(f"ffmpeg 合并失败（退出码 {code}）")
+            assembled.unlink(missing_ok=True)
+        else:
+            os.replace(assembled, target)
+
+        shutil.rmtree(seg_dir, ignore_errors=True)
+        self._emit("hls_assembled", segments=total, size=target.stat().st_size)
 
     # ------------------------------------------------------------------
     # 多连接分片下载

@@ -73,6 +73,15 @@ class DownloadTask:
     sha256: str | None = None
     verified: bool | None = None
 
+    # ---- HLS（mode == "hls" 时使用）------------------------------------
+    #: 分片 URL 列表，顺序即分片索引（持久化，恢复时据此续传）
+    hls_playlist: list[str] = field(default_factory=list)
+    #: fMP4 的初始化段（EXT-X-MAP）
+    hls_init: str = ""
+    #: 已完成的分片索引
+    hls_done: list[int] = field(default_factory=list)
+    hls_total: int = 0
+
     # ---- 备注 ----------------------------------------------------------
     note: str = ""
     plan_reason: str = ""
@@ -177,6 +186,8 @@ class DownloadTask:
 
     @property
     def percent(self) -> float:
+        if self.mode == "hls" and self.hls_total:
+            return round(len(self.hls_done) / self.hls_total * 100, 2)
         return round(self.progress.percent, 2)
 
     @property
@@ -235,6 +246,10 @@ class DownloadTask:
             "note": self.note,
             "plan_reason": self.plan_reason,
             "filename_locked": self.filename_locked,
+            "hls_playlist": list(self.hls_playlist),
+            "hls_init": self.hls_init,
+            "hls_done": list(self.hls_done),
+            "hls_total": self.hls_total,
         }
 
     @classmethod
@@ -281,6 +296,10 @@ class DownloadTask:
             note=str(data.get("note") or ""),
             plan_reason=str(data.get("plan_reason") or ""),
             filename_locked=bool(data.get("filename_locked", False)),
+            hls_playlist=[str(u) for u in (data.get("hls_playlist") or [])],
+            hls_init=str(data.get("hls_init") or ""),
+            hls_done=[int(i) for i in (data.get("hls_done") or [])],
+            hls_total=int(data.get("hls_total") or 0),
         )
         return task
 
@@ -303,8 +322,8 @@ class DownloadTask:
             "downloaded_size": progress.received,
             "percent": round(progress.percent, 2),
             "remaining_size": progress.remaining,
-            "segments_total": progress.total_segments,
-            "segments_done": progress.done_segments,
+            "segments_total": self.hls_total if self.mode == "hls" else progress.total_segments,
+            "segments_done": len(self.hls_done) if self.mode == "hls" else progress.done_segments,
             "speed": round(speed, 2),
             "eta": eta,
             "resumable": self.resumable,

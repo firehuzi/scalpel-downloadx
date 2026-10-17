@@ -42,9 +42,16 @@
 
 现状：已经能把 YouTube / B 站等交给 yt-dlp，X 交给 `download-x-video`，并内置了 B 站 412 的四个请求头。
 
+**已完成：HLS（.m3u8）原生下载**（`network/hls.py` + `NetworkWorker._run_hls`）——
+主播放列表按分辨率/码率选变体、分片并发下载（默认上限 8）、**按分片断点续传**
+（已完成的分片写进任务元数据，暂停/崩溃恢复不重下）、最后按索引拼接，
+有 ffmpeg 时 remux 成 mp4（`-c copy`，不转码）。加密流（EXT-X-KEY）、直播（无 ENDLIST）、
+EXT-X-BYTERANGE 明确拒绝并给出可读错误。测试覆盖：解析、拼接字节比对、暂停后续传不重下、
+用 ffmpeg 现场生成真 HLS 再 remux 并用 ffprobe 验证音视频轨。
+
 缺口（按价值排序）：
 
-1. **HLS/DASH 分片合并与续传**：目前 `m3u8` 整段交给 yt-dlp；如果站点不支持断点，长视频失败要重来。
+1. **DASH（.mpd）**：目前只有 HLS；DASH 需要解析 SegmentTemplate/BaseURL，或交给 yt-dlp。
 2. **字幕 / 弹幕 / 章节**：B 站弹幕、YouTube 字幕、章节切分。
 3. **Cookie 与代理管理**：现在靠 `--cookies` 手动传；应支持按站点保存 cookie 文件与代理。
 4. **播放列表批量**：`--playlist` 已有，但缺"按条目入队 + 单独重试"。

@@ -15,10 +15,12 @@
 from __future__ import annotations
 
 import hashlib
+import mimetypes
 import random
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 _CACHE: dict[tuple[str, int], bytes] = {}
@@ -31,6 +33,19 @@ _INFLIGHT: dict[str, int] = {}
 _INFLIGHT_LOCK = threading.Lock()
 _SHARED_PACING: dict[str, float] = {}
 _SHARED_LOCK = threading.Lock()
+_MOUNTS: dict[str, Path] = {}
+_MOUNT_LOCK = threading.Lock()
+_MOUNT_SEQ = 0
+
+
+def register_mount(directory: Path) -> str:
+    """把一个真实目录挂到 /disk/<token>/ 下（测试真实 HLS 产物用）。"""
+    global _MOUNT_SEQ
+    with _MOUNT_LOCK:
+        _MOUNT_SEQ += 1
+        token = f"m{_MOUNT_SEQ}"
+        _MOUNTS[token] = Path(directory).resolve()
+        return token
 
 
 def _shared_wait(key: str, nbytes: int, rate: float) -> None:
@@ -179,6 +194,13 @@ class Handler(BaseHTTPRequestHandler):
             for key, value in extra.items():
                 self.send_header(key, value)
 
+    def _send_bytes(self, body: bytes, content_type: str) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     # ------------------------------------------------------------------
     def do_HEAD(self) -> None:  # noqa: N802
         self._handle(head_only=True)
@@ -234,6 +256,60 @@ class Handler(BaseHTTPRequestHandler):
             # 聚合限速：多开连接不会变快（静默限速的模型），客户端必须自己发现这件事
             self._shared_key = f"sharedcap:{name}"
             self._shared_rate = float(query.get("rate", [str(512 * 1024)])[0])
+
+        if kind == "hls":
+            # /hls/<name>/master.m3u8 | playlist.m3u8 | segN.ts
+            count = int(query.get("segments", ["6"])[0])
+            seg_size = int(query.get("size", ["16384"])[0])
+            delay = float(query.get("delay", ["0"])[0])
+            base = f"/hls/{name}"
+            leaf = parts[2] if len(parts) > 2 else ""
+            if leaf == "master.m3u8":
+                body = "\n".join([
+                    "#EXTM3U",
+                    "#EXT-X-VERSION:3",
+                    "#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=1280x720",
+                    f"{base}/playlist.m3u8?segments={count}&size={seg_size}&delay={delay}",
+                    "",
+                ])
+                self._send_bytes(body.encode(), "application/vnd.apple.mpegurl")
+                return
+            if leaf == "playlist.m3u8":
+                lines = ["#EXTM3U", "#EXT-X-VERSION:3", "#EXT-X-TARGETDURATION:4",
+                         "#EXT-X-MEDIA-SEQUENCE:0"]
+                for i in range(count):
+                    lines += ["#EXTINF:4.0,", f"{base}/seg{i}.ts?size={seg_size}&delay={delay}"]
+                lines += ["#EXT-X-ENDLIST", ""]
+                self._send_bytes("\n".join(lines).encode(), "application/vnd.apple.mpegurl")
+                return
+            if leaf.startswith("seg") and leaf.endswith(".ts"):
+                index = int(leaf[3:-3])
+                payload = make_payload(f"{name}-{index}", seg_size)
+                if delay:
+                    time.sleep(delay)
+                self._send_bytes(payload, "video/mp2t")
+                return
+            self.send_error(404)
+            return
+
+        if kind == "disk":
+            # /disk/<token>/<相对路径> —— 仅测试用：按相对路径读盘
+            token = parts[1] if len(parts) > 1 else ""
+            with _MOUNT_LOCK:
+                root = _MOUNTS.get(token)
+            if root is None:
+                self.send_error(404)
+                return
+            rel = "/".join(parts[2:])
+            target = (root / rel).resolve()
+            if root not in target.parents or not target.is_file():
+                self.send_error(404)
+                return
+            ctype = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+            if target.suffix == ".m3u8":
+                ctype = "application/vnd.apple.mpegurl"
+            self._send_bytes(target.read_bytes(), ctype)
+            return
 
         if kind == "truncate":
             count = _bump(f"truncate:{name}")
@@ -364,6 +440,10 @@ class TestServer:
         with _SHARED_LOCK:
             _SHARED_PACING.clear()
         clear_requests()
+
+    def mount(self, directory: str | Path) -> str:
+        """注册一个可被 /disk/<token>/ 访问的目录，返回 token。"""
+        return register_mount(Path(directory))
 
     def __enter__(self) -> "TestServer":
         self.thread.start()
