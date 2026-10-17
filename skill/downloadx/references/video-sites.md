@@ -50,7 +50,9 @@ python <skill-dir>/scripts/fetch_video.py <url> [--quality 1080] [--audio] [--in
 
 - 720P 以上一定是音视频分离的两条流 → 没有 ffmpeg 就合不出成品；
 - 年龄限制、会员、私有视频需要 `--cookies`；
-- 播放列表/合集：`fetch_video.py` 默认 `--no-playlist`（避免手滑下一整列），要整列加 `--playlist`；
+- 播放列表/合集：`fetch_video.py` 默认 `--no-playlist`（避免手滑下一整列）。要整列加 `--playlist`：
+  它先 flat 枚举条目，再**逐条**下载，状态写进输出目录的 `.downloadx-playlist.json`；
+  重跑同一条命令只补失败/新增条目，`--redo` 才全部重下。`--playlist --inspect` 只列条目不下载。
 - 纯音频：`--audio` 走 `-f ba/b -x --audio-format m4a`，不重新编码。
 
 ## X / Twitter

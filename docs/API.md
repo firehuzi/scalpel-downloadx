@@ -14,6 +14,7 @@
 | GET | `/api/health` | 健康检查：版本、运行时长、下载目录、状态目录 |
 | GET | `/api/tasks` | 列出任务。`?status=downloading`、`?order=created\|priority\|updated` |
 | POST | `/api/tasks` | 新建下载任务 |
+| POST | `/api/tasks/batch` | 批量入队：每条链接一个独立任务，单条失败不影响其余 |
 | GET | `/api/tasks/{id}` | 单任务详情 |
 | PATCH | `/api/tasks/{id}` | 修改 `priority` / `connections` / `speed_limit` |
 | DELETE | `/api/tasks/{id}` | 移除任务。`?delete_file=true` 连文件一起删 |

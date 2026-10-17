@@ -356,3 +356,23 @@ def test_extension_manifest_is_valid_mv3():
     assert any("127.0.0.1" in host for host in manifest["host_permissions"])
     for name in ("background.js", "popup.html", "popup.js"):
         assert (root / "extension" / name).is_file(), name
+
+
+def test_batch_add_creates_independent_tasks(client, server):
+    size = 8192
+    urls = [server.url(f"/file/batch{i}.bin?size={size}") for i in range(3)]
+    urls.append("ftp://not-supported/x")  # 混一条坏链接，不该影响其余
+
+    resp = client.post("/api/tasks/batch", json={"urls": urls, "connections": 2})
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["count"] == 3
+    assert len(data["failed"]) == 1 and "ftp" in data["failed"][0]["url"]
+    ids = [task["id"] for task in data["created"]]
+    assert len(set(ids)) == 3, "每条链接必须是独立任务"
+    for task_id in ids:
+        assert wait_task(client, task_id)["status"] == "completed"
+
+
+def test_batch_requires_urls(client):
+    assert client.post("/api/tasks/batch", json={"urls": []}).status_code == 422

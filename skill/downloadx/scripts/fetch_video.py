@@ -25,6 +25,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.parse
 from pathlib import Path
 
@@ -193,6 +194,109 @@ def delegate_to_engine(url: str, args: argparse.Namespace) -> int:
     return subprocess.run(command).returncode
 
 
+# ----------------------------------------------------------------------
+# 播放列表：逐条执行 + 状态文件（重跑即续跑）
+# ----------------------------------------------------------------------
+def enumerate_playlist(python: str, url: str, extra: list[str], passthrough: list[str]) -> list[dict]:
+    """用 yt-dlp 的 flat 模式只列条目，不下载。"""
+    command = [python, "-m", "yt_dlp", "--flat-playlist", "-J", "--no-warnings",
+               *extra, *passthrough, url]
+    result = subprocess.run(command, capture_output=True, text=True,
+                            encoding="utf-8", errors="replace")
+    if result.returncode != 0:
+        sys.stderr.write((result.stderr or "")[-1500:])
+        return []
+    try:
+        data = json.loads(result.stdout or "{}")
+    except ValueError:
+        return []
+    entries: list[dict] = []
+    for item in data.get("entries") or []:
+        target = str(item.get("webpage_url") or item.get("url") or "")
+        if not target.startswith("http"):
+            continue
+        entries.append({
+            "id": str(item.get("id") or target),
+            "title": str(item.get("title") or ""),
+            "url": target,
+        })
+    return entries
+
+
+def load_state(path: Path) -> dict:
+    if path.is_file():
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except ValueError:
+            pass
+    return {}
+
+
+def save_state(path: Path, state: dict) -> None:
+    state["updated"] = int(time.time())
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def run_playlist(args, python: str, extra: list[str], passthrough: list[str],
+                 out_dir: Path, version: str, host: str) -> int:
+    """逐条执行；状态存 .downloadx-playlist.json，重跑只补失败/新增条目。"""
+    print(f"→ yt-dlp {version}  站点={host or '未知'}  播放列表模式（逐条执行）")
+    entries = enumerate_playlist(python, args.url, extra, passthrough)
+    if not entries:
+        print("! 没有解析到任何条目（是不是把单个视频当成了播放列表？）", file=sys.stderr)
+        return 1
+
+    if args.inspect:
+        for index, entry in enumerate(entries, 1):
+            print(f"{index:>3}. {entry['id']:<18} {entry['title'][:70]}")
+        return 0
+
+    state_path = out_dir / ".downloadx-playlist.json"
+    state = load_state(state_path)
+    state.setdefault("source", args.url)
+    records: dict[str, dict] = state.setdefault("entries", {})
+
+    summary = {"source": args.url, "total": len(entries), "done": 0, "failed": 0,
+               "skipped": 0, "entries": []}
+    for index, entry in enumerate(entries, 1):
+        key = entry["id"]
+        record = records.get(key) or {}
+        if record.get("status") == "done" and not args.redo:
+            summary["skipped"] += 1
+            continue
+
+        child = [sys.executable, str(Path(__file__).resolve()), entry["url"],
+                 "--dir", str(out_dir), "--quality", args.quality]
+        if args.audio:
+            child.append("--audio")
+        if args.cookies:
+            child += ["--cookies", args.cookies]
+        if args.cookies_from_browser:
+            child += ["--cookies-from-browser", args.cookies_from_browser]
+        print(f"[{index}/{len(entries)}] {entry['title'][:60] or entry['url']}")
+        code = subprocess.run(child).returncode
+        status = "done" if code == 0 else "failed"
+        records[key] = {"title": entry["title"], "status": status}
+        summary["entries"].append({"id": key, "title": entry["title"], "status": status})
+        summary["done" if code == 0 else "failed"] += 1
+        save_state(state_path, state)
+
+    if args.json:
+        print(json.dumps(summary, ensure_ascii=False))
+    else:
+        print(f"\n播放列表完成：成功 {summary['done']}，失败 {summary['failed']}，"
+              f"跳过（已完成）{summary['skipped']}")
+        failed = [item for item in summary["entries"] if item["status"] == "failed"]
+        if failed:
+            print("失败条目（重跑同一条命令即可只补这些）：")
+            for item in failed:
+                print(f"  - {item['title'][:60] or item['id']}")
+        print(f"状态文件：{state_path}")
+    return 0 if summary["failed"] == 0 else 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="按站点分流下载视频/音频/直链")
     parser.add_argument("url")
@@ -202,6 +306,8 @@ def main() -> int:
                         help="best（默认）/ worst / 具体高度如 1080、720")
     parser.add_argument("--audio", action="store_true", help="只要音频（m4a）")
     parser.add_argument("--playlist", action="store_true", help="允许下载整个合集/播放列表")
+    parser.add_argument("--redo", action="store_true",
+                        help="播放列表模式下重下已完成的条目（默认只补失败/新增）")
     parser.add_argument("--inspect", action="store_true", help="只列格式，不下载")
     parser.add_argument("--cookies", default=None, help="cookies.txt 路径（B 站 1080P+ 需要）")
     parser.add_argument("--cookies-from-browser", default=None,
@@ -261,6 +367,9 @@ def main() -> int:
         base += ["-x", "--audio-format", "m4a"]
     else:
         base += ["--merge-output-format", "mp4"]
+
+    if args.playlist:
+        return run_playlist(args, python, extra, passthrough, out_dir, version, host)
 
     if args.inspect:
         print(f"→ yt-dlp {version}  站点={host or '未知'}  解释器={python}")

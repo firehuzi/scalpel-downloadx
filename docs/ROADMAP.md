@@ -57,13 +57,20 @@
 测试覆盖：解析（含 Timeline / SegmentList / DRM 拒绝）、拼接字节比对、暂停后续传不重下、
 用 ffmpeg 现场生成真 HLS / 真 DASH 再合并，并用 ffprobe 验证音视频轨、容器确实是 mp4。
 
+**已完成：播放列表批量**
+
+* 引擎：`POST /api/tasks/batch` —— 每条链接一个独立任务（可单独暂停/重试/看进度），
+  单条坏链接不影响其余（返回 `created` / `failed` 两份清单）。
+* Skill：`fetch_video.py --playlist` 从"丢给 yt-dlp 一次下完"改成
+  **先 flat 枚举条目 → 逐条执行 → 状态写进 `.downloadx-playlist.json`**。
+  重跑同一条命令只补失败/新增条目；`--redo` 才全部重下；`--playlist --inspect` 只列条目。
+
 缺口（按价值排序）：
 
 1. **字幕 / 弹幕 / 章节**：B 站弹幕、YouTube 字幕、章节切分。
 2. **Cookie 与代理管理**：现在靠 `--cookies` 手动传；应支持按站点保存 cookie 文件与代理。
-3. **播放列表批量**：`--playlist` 已有，但缺"按条目入队 + 单独重试"。
-4. **站点适配回归**：把"这个站点当前能不能下、最高什么画质"做成可测的检查。
-5. **DASH 的补充**：多 Period、`$Bandwidth$` 模板、DRM 之外的加密方案。
+3. **站点适配回归**：把"这个站点当前能不能下、最高什么画质"做成可测的检查。
+4. **DASH 的补充**：多 Period、`$Bandwidth$` 模板、DRM 之外的加密方案。
 
 **验收**：三个站点（YouTube / B 站 / X）各跑通 1080P（或站点上限）+ 失败自动重试 + 结果哈希记录。
 

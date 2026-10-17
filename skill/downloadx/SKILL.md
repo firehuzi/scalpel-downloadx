@@ -154,7 +154,9 @@ Four things that otherwise cost an hour each:
   `Accept-Language: zh-CN` + a desktop Chrome UA. Referer alone, and Referer plus UA, both still
   412. The wrapper applies all four.
 - **The default is one video, not the collection.** Pass `--playlist` when a whole list is
-  genuinely wanted.
+  genuinely wanted: it enumerates the entries first, then downloads them one at a time with a
+  state file (`.downloadx-playlist.json`) in the output directory. Re-running the same command
+  only retries failed/new entries; `--redo` forces everything again.
 - **Without login cookies Bilibili caps at 480P**; YouTube 4K works without cookies.
   `--cookies-from-browser` does not work on this Windows box (app-bound encryption, yt-dlp
   issue #7271) — export `cookies.txt` and pass `--cookies`.

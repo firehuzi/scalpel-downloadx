@@ -56,6 +56,17 @@ class UpdateTaskRequest(BaseModel):
     speed_limit: int | None = Field(None, ge=0)
 
 
+class BatchAddRequest(BaseModel):
+    urls: list[str] = Field(..., min_length=1, description="一批链接，每条建一个独立任务")
+    save_dir: str | None = None
+    priority: int | None = Field(None, ge=0, le=99)
+    connections: int | None = Field(None, ge=1, le=32)
+    speed_limit: int = Field(0, ge=0)
+    headers: dict[str, str] | None = None
+    note: str = ""
+    start: bool = True
+
+
 class UpdateConfigRequest(BaseModel):
     download_dir: str | None = None
     max_concurrent_tasks: int | None = Field(None, ge=1, le=32)
@@ -121,6 +132,29 @@ def build_router(manager: DownloadManager) -> APIRouter:
         except Exception as exc:
             raise _translate(exc) from exc
         return manager.public(task)
+
+    # 注意顺序：/tasks/batch 必须注册在 /tasks/{task_id} 之前，否则会被当成 task_id
+    @router.post("/tasks/batch", status_code=201)
+    async def add_batch(payload: BatchAddRequest) -> dict[str, Any]:
+        """批量入队：每条链接一个独立任务（可单独暂停/重试），单条失败不影响其余。"""
+        created: list[dict[str, Any]] = []
+        failed: list[dict[str, Any]] = []
+        for url in payload.urls:
+            try:
+                task = await manager.add(
+                    url,
+                    save_dir=payload.save_dir,
+                    priority=payload.priority,
+                    connections=payload.connections,
+                    speed_limit=payload.speed_limit,
+                    headers=payload.headers,
+                    note=payload.note,
+                    start=payload.start,
+                )
+                created.append(manager.public(task))
+            except Exception as exc:  # 单条坏链接不该拖垮整批
+                failed.append({"url": url, "error": str(exc)})
+        return {"created": created, "count": len(created), "failed": failed}
 
     @router.get("/tasks/{task_id}")
     async def get_task(task_id: str) -> dict[str, Any]:
