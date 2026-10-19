@@ -1,6 +1,13 @@
 ---
 name: downloadx
+display_name: DownloadX 下载引擎
+display_name_en: DownloadX
 description: Download files and media on this machine — resumable multi-connection HTTP/HTTPS downloads plus video/audio from YouTube, Bilibili, X/Twitter and other sites (routed to yt-dlp or download-x-video as appropriate). Use when a download is large, slow, flaky, interrupted, needs integrity checking, must keep running after the current command ends, or when the user asks to download a video, audio, or a file from a link, and when they ask about download progress, queue, or bandwidth. Not for fetching a small page or API response (ordinary HTTP tooling is fine).
+description_zh: 本机优先的下载引擎技能封装，支持断点续传、多连接、队列与带宽限制、SHA-256 校验原子写入，以及 YouTube/Bilibili/X 等站点音视频下载。仅封装已安装引擎，下载路径不调用模型。
+description_en: Local-first download engine wrapped as an agent skill. Resumable multi-connection HTTP/HTTPS, queue, priority, speed limit, SHA-256 verified atomic writes, and YouTube/Bilibili/X media via yt-dlp. Thin wrapper only, no model in the download path.
+category: coding
+version: 0.2.0
+author: 刃研社 SCALPEL LAB
 ---
 
 # DownloadX

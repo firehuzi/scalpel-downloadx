@@ -1,0 +1,15 @@
+name: downloadx
+version: 0.2.0
+description: Local-first, agent-callable downloader. Resumable multi-connection HTTP/HTTPS, queue and priority, bandwidth cap, SHA-256 verified atomic writes, native HLS/DASH, and video/audio from YouTube, Bilibili, X/Twitter via yt-dlp. This skill is a thin wrapper that locates the engine already installed on the host and forwards your arguments. No model runs in the download path.
+author: firehuzi
+homepage: https://github.com/firehuzi/scalpel-downloadx
+skill_file: skill/downloadx/SKILL.md
+tags:
+  - download
+  - downloader
+  - agent
+  - youtube
+  - bilibili
+  - video
+  - file-transfer
+  - developer-tools
