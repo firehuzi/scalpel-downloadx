@@ -192,6 +192,50 @@ HTTP 412 的四个请求头），X/Twitter 交给已有的 `download-x-video` sk
 
 ---
 
+## 作为 Agent Skill 安装（Install as Agent Skill）
+
+DownloadX 自带一个薄封装 skill（`skill/downloadx/`）：它不含任何下载逻辑，只负责定位本机引擎并原样转发参数。
+装好后，任意会话一句话就能调用本机下载能力 —— 视频、大文件、断点续传、队列、SHA-256 校验全走引擎本体。
+
+> **本地优先（local-first）**：引擎必须装在本机。云端 Agent 沙箱跑不了这个 skill（没有 Python 引擎、下载落点也不明确），别往云端 Pay Skill 沙箱塞。
+
+### 前置条件
+```powershell
+pip install -e .                       # 本机先装好引擎
+python -m downloadx serve              # 或前台模式，引擎照常工作
+```
+
+### 各平台安装
+
+| 平台 | 方式 | 备注 |
+| --- | --- | --- |
+| **OpenClaw / ClawHub** | 仓库打 `openclaw-skill` topic 后 OpenClaw 自动索引；或 clawhub.ai 搜 `downloadx` 安装 | 已备 `clawhub.yaml` + 英文 `SOUL.md` |
+| **WorkBuddy** | 开放平台后台「技能」上传 `skill/downloadx/SKILL.md` | 已含 `display_name` / `description_zh` / `description_en`，分类选 `coding` |
+| **SkillHub（腾讯，免费）** | 企业认证后传含 SKILL.md 的包（≤10MB） | 仅限本地优先 skill，非云端 Pay Skill |
+| **skills.sh（Vercel）** | `npx skills add firehuzi/scalpel-downloadx` | 约定 `skills/<name>/SKILL.md`；本仓库用单数 `skill/`，若命令找不到 skill，走下方手动安装 |
+| **手动 / 任意宿主** | 复制 `skill/downloadx/` 到对应 skills 目录（下表） | 最稳妥，跨宿主通用（遵循 agentskills.io） |
+
+### 手动安装路径
+```powershell
+# Codex
+Copy-Item -Recurse skill/downloadx $env:USERPROFILE\.codex\skills\downloadx
+# WorkBuddy（用户级）
+Copy-Item -Recurse skill/downloadx $env:USERPROFILE\.workbuddy\skills\downloadx
+# 其他遵循 agentskills.io 的宿主：放到各自的 skills/<name>/ 目录即可
+```
+
+### 验证
+```powershell
+python $env:USERPROFILE\.codex\skills\downloadx\scripts\dx.py doctor   # 应解析出引擎路径 / 解释器 / 版本
+python $env:USERPROFILE\.codex\skills\downloadx\scripts\dx.py add <url> --wait --json
+```
+
+### 更新
+改 `skill/downloadx/` 源，再用 `scripts/sync_skill.py` 同步到所有副本（Codex 加载目录 + 归档目录），
+或各平台重新安装 / 拉取最新版。
+
+---
+
 ## 同步到「我的AI助手」中台
 
 `scripts/install_to_assistant.py` 把下载能力装进本机的 AI 中台（默认 `D:\Projects\我的AI助手`）：
