@@ -699,7 +699,7 @@ def add_common_options(parser: argparse.ArgumentParser, *, suppress: bool) -> No
     parser.add_argument(
         "--state-dir",
         default=nothing,
-        help="状态目录（默认 %LOCALAPPDATA%/DownloadX）",
+        help="状态目录（默认 %%LOCALAPPDATA%%/DownloadX）",
     )
     parser.add_argument("--download-dir", default=nothing, help="本次使用的下载目录")
     parser.add_argument(

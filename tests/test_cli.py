@@ -219,6 +219,18 @@ def test_cli_help_and_version(capsys):
     assert "DownloadX" in capsys.readouterr().out
 
 
+def test_cli_help_does_not_crash(capsys):
+    """回归：'--help' 与 'add --help' 曾因 help 文本里的字面量 % 触发 argparse
+    的 % 格式化，抛出 ValueError。这里确保帮助能正常打印。"""
+    for args in (["--help"], ["add", "--help"]):
+        with pytest.raises(SystemExit) as info:
+            main(args)
+        assert info.value.code == 0
+        out = capsys.readouterr().out
+        assert "usage:" in out
+        assert "%LOCALAPPDATA%" in out  # %% 还原成的字面量，证明未被当格式符吞掉
+
+
 def test_cli_token_lifecycle(capsys, cli_args):
     common, state, _, _ = cli_args
     assert main([*common, "token"]) == 0
