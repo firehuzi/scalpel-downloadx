@@ -1,0 +1,12 @@
+{
+  "name": "dsh-downloadx",
+  "description": "DownloadX 下载器：侧边栏入口 + iframe 嵌入本地 Web UI",
+  "version": "0.1.0",
+  "entry": {
+    "name": "dsh-downloadx",
+    "inject": []
+  },
+  "client": {
+    "platform": "web"
+  }
+}

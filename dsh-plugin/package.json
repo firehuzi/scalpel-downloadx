@@ -1,0 +1,56 @@
+{
+  "name": "dsh-downloadx",
+  "version": "0.1.0",
+  "description": "DownloadX 下载引擎的 DeepSeek Harness 插件：把本机 DownloadX 的 Agent API 注册成模型工具，自动托管本地引擎，并在侧边栏提供「下载器」面板。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "cordis.patch.yml",
+    "dsh.plugin.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "downloadx",
+    "downloader",
+    "download",
+    "hls",
+    "sha256"
+  ],
+  "author": "刃研社 SCALPEL LAB <firehuzi@github.com>",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://github.com/firehuzi/scalpel-downloadx/tree/main/dsh-plugin",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/firehuzi/scalpel-downloadx.git",
+    "directory": "dsh-plugin"
+  },
+  "bugs": {
+    "url": "https://github.com/firehuzi/scalpel-downloadx/issues"
+  },
+  "engines": {
+    "node": ">=22",
+    "dsh": "0.2.1-rc.2 || >=0.2.1-rc.2 <0.3.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  }
+}
