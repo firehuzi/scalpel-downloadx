@@ -1,0 +1,72 @@
+{
+  "format": 1,
+  "title": "刃研社 · SCALPEL LAB DSH 插件",
+  "description": "刃研社（SCALPEL LAB）的 DeepSeek Harness 插件索引（format 1）。",
+  "metadata": {
+    "categories": {
+      "download": {
+        "title": {
+          "en": "Download",
+          "zh": "下载"
+        }
+      }
+    },
+    "labels": {
+      "local-first": {
+        "title": {
+          "en": "Local-first",
+          "zh": "本地优先"
+        }
+      }
+    }
+  },
+  "plugins": [
+    {
+      "name": "dsh-downloadx",
+      "title": {
+        "en": "DownloadX",
+        "zh": "刃研社-DownloadX 下载器"
+      },
+      "description": {
+        "en": "Local-first download engine bridge: six model-callable download tools plus a sidebar panel that embeds the DownloadX web UI.",
+        "zh": "本地优先的下载引擎桥接：6 个模型可调用的下载工具，侧边栏面板直接嵌入 DownloadX Web UI。"
+      },
+      "author": "刃研社 SCALPEL LAB",
+      "homepage": "https://github.com/firehuzi/scalpel-downloadx",
+      "repository": {
+        "url": "https://github.com/firehuzi/scalpel-downloadx",
+        "directory": "dsh-plugin"
+      },
+      "metadata": {
+        "category": "download",
+        "keywords": [
+          "download",
+          "downloader",
+          "downloadx",
+          "hls",
+          "dash",
+          "sha256",
+          "resume"
+        ],
+        "labels": [
+          "local-first"
+        ]
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1792457600,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/firehuzi/scalpel-downloadx",
+            "commit": "ca944fb18794dec805395671a47e01933caeca1f",
+            "path": "dsh-plugin"
+          },
+          "engines": {
+            "dsh": "0.2.1-rc.2 || >=0.2.1-rc.2 <0.3.0"
+          }
+        }
+      ]
+    }
+  ]
+}
